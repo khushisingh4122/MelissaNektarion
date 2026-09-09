@@ -1,15 +1,18 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
-  LayoutDashboard, 
-  Map, 
-  MessageSquare, 
-  Plane, 
-  Leaf, 
-  Bug, 
-  TrendingUp, 
-  FileText, 
+  LayoutDashboard,
+  Map,
+  MessageSquare,
+  BrainCircuit,
+  Plane,
+  Leaf,
+  Bug,
+  TrendingUp,
+  FileText,
   Bell,
+  Route,
+  Activity,
   User,
   Settings,
   HelpCircle,
@@ -26,7 +29,16 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
     { path: '/farm-map', label: t('nav.farmMap'), icon: Map },
     { path: '/ai-chatbot', label: t('nav.aiChatbot'), icon: MessageSquare },
+  
+    {
+      path: '/ai-analysis',
+      label: 'AI Analysis',
+      icon: BrainCircuit
+    },
+  
     { path: '/drone-monitoring', label: t('nav.droneMonitoring'), icon: Plane },
+    { path: '/mission-planning', label: t('nav.missionPlanning'), icon: Route },
+    { path: '/drone-simulation', label: 'Drone Simulation', icon: Activity },
     { path: '/crop-health', label: t('nav.cropHealth'), icon: Leaf },
     { path: '/pollination', label: t('nav.pollination'), icon: Bug },
     { path: '/yield-prediction', label: t('nav.yieldPrediction'), icon: TrendingUp },
