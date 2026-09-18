@@ -81,10 +81,19 @@ export default function Login() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
       });
-      const data = await response.json();
+      const responseText = await response.text();
+      let data = {};
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        data = {};
+      }
 
       if (!response.ok) {
-        setErrors({ general: data.detail || "Invalid email or password." });
+        const detail = Array.isArray(data.detail)
+          ? data.detail.map((item) => item.msg).join(" ")
+          : data.detail;
+        setErrors({ general: detail || "Invalid email or password." });
         return;
       }
 
