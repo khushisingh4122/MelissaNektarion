@@ -2,35 +2,169 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ✅ REQUIRED VARIABLES */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
-
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-
-  --primary: 222 47% 11%;
-  --primary-foreground: 210 40% 98%;
-
-  --border: 214 32% 91%;
+  --background: 68 26% 95%;
+  --foreground: 156 43% 15%;
+  --muted: 78 22% 88%;
+  --muted-foreground: 86 17% 40%;
+  --primary: 154 50% 24%;
+  --primary-foreground: 70 35% 96%;
+  --border: 82 22% 78%;
+  --soft-green: #eef1e8;
+  --grass: #2f6848;
+  --deep-forest: #123f2d;
+  --olive: #78884b;
+  --sage: #dce5d0;
+  --sun: #d5a64f;
+  --soil: #536b46;
 }
 
-/* ✅ DARK MODE */
 .dark {
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
-
+  --background: 155 30% 10%;
+  --foreground: 140 30% 96%;
   --muted: 217 33% 17%;
   --muted-foreground: 215 20% 65%;
-
   --primary: 210 40% 98%;
   --primary-foreground: 222 47% 11%;
-
   --border: 217 33% 17%;
 }
 
-/* ✅ APPLY */
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   @apply bg-background text-foreground;
+  min-height: 100vh;
+  background-color: #eef1e8;
+  background-image: linear-gradient(rgba(238, 241, 232, 0.82), rgba(226, 234, 218, 0.88)), url('/ai-images/IMG_0044.jpg');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-position: center center;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
 }
+
+#root {
+  min-height: 100vh;
+}
+
+.farm-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.farm-shell::before,
+.farm-shell::after {
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+  color: rgba(34, 123, 68, 0.15);
+  font-size: 4rem;
+}
+
+.farm-shell::before {
+  content: '✿';
+  left: 2.5rem;
+  bottom: 2rem;
+}
+
+.farm-shell::after {
+  content: '❧';
+  right: 2rem;
+  top: 7rem;
+}
+
+.bg-card {
+  background-color: #f4f5ed !important;
+  border-color: #d2ddc8 !important;
+}
+
+/* Shared agriculture palette used across dashboard, tools, and support views. */
+.bg-emerald-50 { background-color: #eef3e8 !important; }
+.bg-emerald-100 { background-color: #dce8d4 !important; }
+.bg-emerald-500 { background-color: #4f8a5c !important; }
+.bg-emerald-600 { background-color: #39754d !important; }
+.bg-emerald-700 { background-color: #2f6848 !important; }
+.bg-green-500 { background-color: #4f8a5c !important; }
+.bg-green-600 { background-color: #39754d !important; }
+.text-emerald-600 { color: #39754d !important; }
+.text-emerald-700 { color: #557a45 !important; }
+.text-emerald-800 { color: #3e6548 !important; }
+.text-emerald-900 { color: #244c38 !important; }
+.text-emerald-950 { color: #183d2d !important; }
+.text-green-500 { color: #557a45 !important; }
+.border-emerald-100 { border-color: #dce8d4 !important; }
+.border-emerald-200 { border-color: #cbd8c5 !important; }
+.border-emerald-300 { border-color: #afc5a7 !important; }
+.ring-green-500\/30 { --tw-ring-color: rgb(85 122 69 / 0.3) !important; }
+
+.hero-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.45;
+  animation: floatOrb 11s ease-in-out infinite;
+}
+
+.hero-orb.green {
+  background: rgba(52, 211, 153, 0.28);
+  width: 240px;
+  height: 240px;
+  top: -30px;
+  right: 10%;
+}
+
+.hero-orb.gold {
+  background: rgba(253, 224, 71, 0.2);
+  width: 180px;
+  height: 180px;
+  bottom: 10px;
+  right: 24%;
+  animation-delay: 1.2s;
+}
+
+.farm-card {
+  background: #f4f5ed;
+  border: 1px solid #d2ddc8;
+  box-shadow: 0 20px 45px rgba(24, 59, 37, 0.08);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.farm-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 55px rgba(14, 63, 35, 0.12);
+}
+
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(220,229,208,0.22) 50%, transparent 100%);
+  transform: translateX(-120%);
+  animation: sheen 6s ease-in-out infinite;
+}
+
+@keyframes floatOrb {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-18px) scale(1.08); }
+}
+
+@keyframes sheen {
+  0% { transform: translateX(-120%); }
+  40%, 100% { transform: translateX(120%); }
+}
+
+@keyframes riseIn {
+  0% { opacity: 0; transform: translateY(18px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animated-panel {
+  animation: riseIn 0.6s ease both;
+}
+
+.animated-panel.delay-1 { animation-delay: 0.08s; }
+.animated-panel.delay-2 { animation-delay: 0.16s; }
+.animated-panel.delay-3 { animation-delay: 0.24s; }
+.animated-panel.delay-4 { animation-delay: 0.32s; }

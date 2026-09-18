@@ -2,3 +2,17 @@
 dist/
 .env
 .env.local
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Apple training dataset
+apple_training/images/
+apple_training/labels/
+
+# Training outputs
+apple_training/runs/
+
+# YOLO pretrained model
+yolo11n.pt

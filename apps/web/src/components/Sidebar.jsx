@@ -1,19 +1,22 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Map, 
-  MessageSquare, 
-  Plane, 
-  Leaf, 
-  Bug, 
-  TrendingUp, 
-  FileText, 
+import {
+  LayoutDashboard,
+  Map,
+  Plane,
+  Leaf,
+  Bug,
+  TrendingUp,
+  FileText,
   Bell,
+  Route,
+  Activity,
+  Radio,
   User,
   Settings,
   HelpCircle,
-  X
+  X,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { cn } from '../lib/utils';
@@ -23,14 +26,14 @@ const Sidebar = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
 
   const navItems = [
-    { path: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
-    { path: '/farm-map', label: t('nav.farmMap'), icon: Map },
-    { path: '/ai-chatbot', label: t('nav.aiChatbot'), icon: MessageSquare },
+    { path: '/dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { path: '/farm-intelligence', label: 'Farm Intelligence', icon: Map },
     { path: '/drone-monitoring', label: t('nav.droneMonitoring'), icon: Plane },
-    { path: '/crop-health', label: t('nav.cropHealth'), icon: Leaf },
+    { path: '/mission-planning', label: t('nav.missionPlanning'), icon: Route },
     { path: '/pollination', label: t('nav.pollination'), icon: Bug },
-    { path: '/yield-prediction', label: t('nav.yieldPrediction'), icon: TrendingUp },
-    { path: '/schemes', label: t('nav.schemes'), icon: FileText },
+    { path: '/crop-health', label: 'AI Insights', icon: Leaf },
+    { path: '/ai-chatbot', label: 'AI Assistant', icon: Activity },
+    { path: '/sensor-data', label: 'Sensor Data', icon: Radio },
     { path: '/alerts', label: t('nav.alerts'), icon: Bell },
   ];
 
@@ -42,28 +45,38 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   return (
     <>
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={onClose}
-        />
-      )}
-      
+      {isOpen && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={onClose} />}
+
       <aside
         className={cn(
-          "fixed top-0 left-0 z-50 h-full w-64 bg-background border-r transition-transform duration-300 lg:translate-x-0 lg:static flex flex-col",
-          isOpen ? "translate-x-0" : "-translate-x-full"
+          'fixed left-0 top-0 z-50 flex h-full w-64 flex-col border-r border-[#d8e3d2] bg-[#f5f7f1] text-[#183d2d] shadow-[0_20px_55px_rgba(24,61,45,0.16)] transition-transform duration-300',
+          isOpen ? 'translate-x-0' : 'lg:translate-x-0 -translate-x-full'
         )}
       >
-        <div className="flex items-center justify-between p-4 border-b lg:hidden">
-          <span className="font-semibold">{t('nav.menu')}</span>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="w-5 h-5" />
+        <div className="flex items-center justify-between border-b border-[#d8e3d2] p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1f5d3d] text-lg">🌾</div>
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-[#718446]">Mellisanectorian</p>
+              <p className="text-sm font-semibold text-[#183d2d]">Farm control</p>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-[#183d2d] hover:bg-[#e8f1e2]">
+            <X className="h-5 w-5" />
           </Button>
         </div>
 
+        <div className="mx-4 mt-4 rounded-2xl border border-[#d8e3d2] bg-[#e8f1e2] p-3">
+          <div className="flex items-center gap-2 text-[#718446]">
+            <Sparkles className="h-4 w-4 text-[#718446]" />
+            <span className="text-xs font-medium uppercase tracking-[0.18em] text-[#718446]">Season overview</span>
+          </div>
+          <p className="mt-3 text-2xl font-bold text-[#183d2d]">+19.8%</p>
+          <p className="text-xs text-[#718446]">Yield growth this month</p>
+        </div>
+
         <nav className="flex-1 overflow-y-auto p-4">
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {navItems.map((item) => (
               <NavLink
                 key={item.path}
@@ -71,21 +84,19 @@ const Sidebar = ({ isOpen, onClose }) => {
                 onClick={onClose}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                    isActive ? 'bg-[#dcefd5] text-[#183d2d]' : 'text-[#55705c] hover:bg-[#e8f1e2] hover:text-[#183d2d]'
                   )
                 }
               >
-                <item.icon className="w-5 h-5 shrink-0" />
+                <item.icon className="h-4 w-4 shrink-0" />
                 <span>{item.label}</span>
               </NavLink>
             ))}
           </div>
         </nav>
 
-        <div className="p-4 border-t space-y-1">
+        <div className="space-y-1 border-t border-[#d8e3d2] p-4">
           {bottomNavItems.map((item) => (
             <NavLink
               key={item.path}
@@ -93,14 +104,12 @@ const Sidebar = ({ isOpen, onClose }) => {
               onClick={onClose}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                  isActive ? 'bg-[#dcefd5] text-[#183d2d]' : 'text-[#55705c] hover:bg-[#e8f1e2] hover:text-[#183d2d]'
                 )
               }
             >
-              <item.icon className="w-5 h-5 shrink-0" />
+              <item.icon className="h-4 w-4 shrink-0" />
               <span>{item.label}</span>
             </NavLink>
           ))}

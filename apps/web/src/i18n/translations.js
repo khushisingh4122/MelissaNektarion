@@ -14,6 +14,7 @@ export const translations = {
         yieldPrediction: "Yield Prediction",
         schemes: "Government Schemes",
         alerts: "Alerts & Notifications",
+        missionPlanning: "Mission Planning",
         menu: "Menu",
         profile: "My Profile",
         settings: "Settings",
@@ -202,6 +203,11 @@ export const translations = {
         distance: "away",
         experience: "Experience",
         specialization: "Specialization"
+      },
+      missionPlanning: {
+        title: "Mission Planning",
+        subtitle: "Plan and manage UAV pollination missions across agricultural fields.",
+        simulationMode: "Frontend Simulation Mode"
       }
     },
     hi: {
@@ -219,6 +225,7 @@ export const translations = {
         yieldPrediction: "उपज भविष्यवाणी",
         schemes: "सरकारी योजनाएं",
         alerts: "अलर्ट और सूचनाएं",
+        missionPlanning: "मिशन योजना",
         menu: "मेनू",
         profile: "मेरी प्रोफाइल",
         settings: "सेटिंग्स",
@@ -407,6 +414,11 @@ export const translations = {
         distance: "दूर",
         experience: "अनुभव",
         specialization: "विशेषज्ञता"
+      },
+      missionPlanning: {
+        title: "मिशन योजना",
+        subtitle: "कृषि खेतों में यूएवी परागण मिशनों की योजना बनाएं और प्रबंधित करें।",
+        simulationMode: "फ्रंटएंड सिमुलेशन मोड"
       }
     }
   };

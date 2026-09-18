@@ -8,8 +8,8 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-print("DATABASE_URL loaded:", DATABASE_URL is not None)
-print("DATABASE PORT:", DATABASE_URL.split(":")[-2].split("/")[0])
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not configured")
 
 engine = create_engine(DATABASE_URL)
 

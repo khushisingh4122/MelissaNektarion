@@ -59,3 +59,33 @@ def update_mission_status(
     db.refresh(mission)
 
     return mission
+
+
+@router.post("/{mission_id}/validate")
+def validate_mission(
+    mission_id: int,
+    db: Session = Depends(get_db)
+):
+    mission = db.query(Mission).filter(Mission.id == mission_id).first()
+    if not mission:
+        raise HTTPException(status_code=404, detail="Mission not found")
+
+    mission.status = "validated"
+    db.commit()
+    db.refresh(mission)
+    return {"valid": True, "mission": mission}
+
+
+@router.post("/{mission_id}/dispatch")
+def dispatch_mission(
+    mission_id: int,
+    db: Session = Depends(get_db)
+):
+    mission = db.query(Mission).filter(Mission.id == mission_id).first()
+    if not mission:
+        raise HTTPException(status_code=404, detail="Mission not found")
+
+    mission.status = "dispatched"
+    db.commit()
+    db.refresh(mission)
+    return {"sent": True, "status": mission.status, "mission": mission}
