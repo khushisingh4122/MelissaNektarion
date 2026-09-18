@@ -14,6 +14,7 @@ __pycache__/
 # Apple training dataset
 apple_training/images/
 apple_training/labels/
+apps/apple_training/datasets/
 
 # Training outputs
 apple_training/runs/

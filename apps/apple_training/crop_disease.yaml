@@ -1,0 +1,11 @@
+path: ./datasets/apple_crop_health
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: healthy
+  1: apple_scab
+  2: powdery_mildew
+  3: aphid
+  4: whitefly

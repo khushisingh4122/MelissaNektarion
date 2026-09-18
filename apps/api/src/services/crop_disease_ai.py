@@ -56,6 +56,11 @@ def analyze_image(image_path: Path) -> dict:
     return {"status": "analyzed", "detections": detections}
 
 
+def analyze_frame(image_path: Path) -> dict:
+    """Run the same model contract for a Raspberry Pi or drone camera frame."""
+    return analyze_image(image_path)
+
+
 def solution_for(disease: str) -> str:
     recommendations = {
         "healthy": "No disease detected. Continue regular monitoring and balanced irrigation.",
