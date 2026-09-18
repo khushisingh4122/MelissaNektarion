@@ -1,26 +1,67 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
-import { User, MapPin, Phone, Mail, Maximize, Sprout, Hash, Camera } from 'lucide-react';
+import { User, Phone, Mail, Camera } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation.jsx';
 import { useProfile } from '../hooks/useProfile.js';
 import VoiceInputButton from "../components/VoiceInputButton.jsx";
 import { toast } from 'sonner';
+import { apiServerClient } from '../lib/apiServerClient.js';
 
 const ProfilePage = () => {
   const { t, language } = useTranslation();
   const { profile, updateProfile } = useProfile();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(profile);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = () => {
-    updateProfile(formData);
-    setIsEditing(false);
-    toast.success(t('profile.success'));
+  useEffect(() => {
+    let active = true;
+
+    apiServerClient.fetch('/users/me')
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Unable to load profile');
+        const user = await response.json();
+        if (active) {
+          setFormData((current) => ({ ...current, ...user }));
+        }
+      })
+      .catch((error) => {
+        console.error('Profile load error:', error);
+        toast.error('Unable to load your profile.');
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const response = await apiServerClient.fetch('/users/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: formData.name, phone: formData.phone || null }),
+      });
+      if (!response.ok) throw new Error('Unable to save profile');
+      const savedProfile = await response.json();
+      setFormData((current) => ({ ...current, ...savedProfile }));
+      updateProfile({ ...formData, ...savedProfile });
+      setIsEditing(false);
+      toast.success(t('profile.success'));
+    } catch (error) {
+      console.error('Profile save error:', error);
+      toast.error('Unable to save your profile.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -44,10 +85,10 @@ const ProfilePage = () => {
           type={type}
           value={formData[id]}
           onChange={(e) => handleChange(id, e.target.value)}
-          disabled={!isEditing}
+          disabled={!isEditing || id === 'email'}
           className="flex-1 bg-background text-foreground"
         />
-        {isEditing && (
+        {isEditing && id !== 'email' && (
           <VoiceInputButton 
             onTranscript={(text) => handleChange(id, text)} 
             language={language === 'hi' ? 'hi-IN' : 'en-IN'} 
@@ -78,6 +119,8 @@ const ProfilePage = () => {
           )}
         </div>
 
+        {isLoading && <p className="text-sm text-muted-foreground">Loading profile...</p>}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="md:col-span-1 h-fit">
             <CardContent className="pt-6 flex flex-col items-center text-center space-y-4">
@@ -91,7 +134,7 @@ const ProfilePage = () => {
               </div>
               <div>
                 <h2 className="text-xl font-bold">{formData.name || 'Farmer Name'}</h2>
-                <p className="text-sm text-muted-foreground">{formData.location || 'Location not set'}</p>
+                <p className="text-sm text-muted-foreground">{formData.email || 'Email not set'}</p>
               </div>
             </CardContent>
           </Card>
@@ -105,10 +148,6 @@ const ProfilePage = () => {
                 {renderField('name', <User className="w-4 h-4" />, 'name')}
                 {renderField('phone', <Phone className="w-4 h-4" />, 'phone', 'tel')}
                 {renderField('email', <Mail className="w-4 h-4" />, 'email', 'email')}
-                {renderField('location', <MapPin className="w-4 h-4" />, 'location')}
-                {renderField('farmSize', <Maximize className="w-4 h-4" />, 'farmSize')}
-                {renderField('cropType', <Sprout className="w-4 h-4" />, 'cropType')}
-                {renderField('farmId', <Hash className="w-4 h-4" />, 'farmId')}
               </div>
 
               {isEditing && (
@@ -116,8 +155,8 @@ const ProfilePage = () => {
                   <Button variant="outline" onClick={handleCancel}>
                     {t('profile.cancel')}
                   </Button>
-                  <Button onClick={handleSave}>
-                    {t('profile.save')}
+                  <Button onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? 'Saving...' : t('profile.save')}
                   </Button>
                 </div>
               )}

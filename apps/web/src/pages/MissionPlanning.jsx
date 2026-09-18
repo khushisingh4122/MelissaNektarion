@@ -37,6 +37,7 @@ import {
 } from '../utils/geo.js';
 import { MapPin, Plus, Undo2, Trash2, Save, RotateCcw, Radio, MonitorSmartphone } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation.jsx';
+import { apiServerClient } from '../lib/apiServerClient.js';
 
 const DEFAULT_FORM_DATA = {
   missionName: 'Pollination Mission 01',
@@ -47,6 +48,12 @@ const DEFAULT_FORM_DATA = {
   pattern: 'grid',
   priority: 'normal',
 };
+
+const MISSION_TYPES = [
+  { value: 'pollination', label: 'Pollen' },
+  { value: 'crop-monitoring', label: 'Crop' },
+  { value: 'pest-detection', label: 'Pest' },
+];
 
 const labelFor = (options, value) => options.find((opt) => opt.value === value)?.label || '';
 
@@ -59,6 +66,9 @@ const MissionPlanning = () => {
   const [errors, setErrors] = useState({});
   const [editingMissionId, setEditingMissionId] = useState(null);
   const [status, setStatus] = useState('draft');
+  const [missionType, setMissionType] = useState('pollination');
+  const [droneId, setDroneId] = useState('1');
+  const [backendMissionId, setBackendMissionId] = useState(null);
 
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [viewMission, setViewMission] = useState(null);
@@ -168,7 +178,7 @@ const MissionPlanning = () => {
     return nextErrors;
   };
 
-  const handleSaveMission = () => {
+  const handleSaveMission = async () => {
     const validationErrors = validate();
     setErrors(validationErrors);
 
@@ -201,6 +211,32 @@ const MissionPlanning = () => {
       setEditingMissionId(created.id);
     }
 
+    try {
+      if (backendMissionId) {
+        await apiServerClient.fetch(`/missions/${backendMissionId}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'planned' }),
+        });
+      } else {
+        const response = await apiServerClient.fetch('/missions/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.missionName.trim(),
+            location: formData.field,
+            drone_id: Number(droneId),
+          }),
+        });
+        if (!response.ok) throw new Error('Mission could not be saved to the backend.');
+        const createdBackendMission = await response.json();
+        setBackendMissionId(createdBackendMission.id);
+      }
+    } catch (error) {
+      toast.error(error.message || 'Backend mission save failed.');
+      return;
+    }
+
     setStatus('planned');
     toast.success('Mission saved successfully.');
   };
@@ -209,16 +245,26 @@ const MissionPlanning = () => {
   // Start Mission (frontend-only simulation)
   // ---------------------------------------------------------------------
 
-  const handleStartMission = () => {
+  const handleStartMission = async () => {
     if (!editingMissionId) {
       toast.error('Save the mission before starting it.');
       return;
     }
-    setMissionStatus(editingMissionId, 'ready');
-    setStatus('ready');
-    toast.success('Mission ready for execution.', {
-      description: 'Backend/flight controller connection required for real execution.',
-    });
+    if (!backendMissionId) {
+      toast.error('Save this mission to the backend before dispatching it.');
+      return;
+    }
+    try {
+      const validation = await apiServerClient.fetch(`/missions/${backendMissionId}/validate`, { method: 'POST' });
+      if (!validation.ok) throw new Error('Mission validation failed.');
+      const dispatch = await apiServerClient.fetch(`/missions/${backendMissionId}/dispatch`, { method: 'POST' });
+      if (!dispatch.ok) throw new Error('Mission dispatch failed.');
+      setMissionStatus(editingMissionId, 'dispatched');
+      setStatus('dispatched');
+      toast.success('Mission sent to drone.', { description: 'Live monitoring is now available.' });
+    } catch (error) {
+      toast.error(error.message || 'Mission dispatch failed.');
+    }
   };
 
   // ---------------------------------------------------------------------
@@ -230,6 +276,7 @@ const MissionPlanning = () => {
     setWaypoints([]);
     setErrors({});
     setEditingMissionId(null);
+    setBackendMissionId(null);
     setStatus('draft');
     setResetDialogOpen(false);
   };
@@ -312,6 +359,30 @@ const MissionPlanning = () => {
           <Radio className="w-3.5 h-3.5 shrink-0" />
           This mission is currently planned locally in your browser and is not being sent to a real drone yet.
         </p>
+
+        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[#cbd8c5] bg-[#f5f7f1] p-3 sm:grid-cols-4 lg:grid-cols-8">
+          {['Select Field', 'Select Mission', 'Generate Route', 'Select Drone', 'Validate', 'Send to Drone', 'Flight', 'Live Monitoring'].map((step, index) => (
+            <div key={step} className={`rounded-xl px-2 py-2 text-center text-[10px] font-semibold ${index <= 2 ? 'bg-[#dcefd5] text-[#355340]' : 'text-[#718446]'}`}>
+              <span className="mb-1 block text-[9px] text-[#9aa994]">0{index + 1}</span>{step}
+            </div>
+          ))}
+        </div>
+
+        <Card className="border border-[#cbd8c5] bg-[#f5f7f1]">
+          <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="text-xs font-semibold text-[#55705c]">Mission type
+              <select value={missionType} onChange={(event) => setMissionType(event.target.value)} className="mt-1 block w-full rounded-xl border border-[#cbd8c5] bg-[#eef4e9] px-3 py-2 text-sm text-[#183d2d]">
+                {MISSION_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label} mission</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-[#55705c]">Drone
+              <select value={droneId} onChange={(event) => setDroneId(event.target.value)} className="mt-1 block w-full rounded-xl border border-[#cbd8c5] bg-[#eef4e9] px-3 py-2 text-sm text-[#183d2d]">
+                <option value="1">Drone A1 • Active</option><option value="2">Drone B2 • Idle</option>
+              </select>
+            </label>
+            <div className="flex items-end rounded-xl bg-[#e8f1e2] px-3 py-2 text-xs text-[#55705c]">{status === 'dispatched' ? 'Mission dispatched • Live monitoring ready' : 'Route is local until you validate and send it.'}</div>
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column: configuration + objective */}

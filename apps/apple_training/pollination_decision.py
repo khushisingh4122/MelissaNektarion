@@ -1,4 +1,4 @@
-from apple_detector import detect_image
+from apps.apple_training.apple_detector import detect_image
 from pathlib import Path
 import json
 import sys

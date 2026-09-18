@@ -1,5 +1,5 @@
-from apple_detector import detect_image
-from pollination_decision import make_pollination_decision
+from apps.apple_training.apple_detector import detect_image
+from apps.apple_training.pollination_decision import make_pollination_decision
 from pathlib import Path
 import json
 import sys
