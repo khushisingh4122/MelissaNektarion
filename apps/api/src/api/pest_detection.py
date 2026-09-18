@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
+from tempfile import NamedTemporaryFile
+from pathlib import Path
 
 from src.database.database import get_db
 from src.models.pest_detection import PestDetection
@@ -10,6 +12,36 @@ router = APIRouter(
     prefix="/pest-detection",
     tags=["Pest Detection"]
 )
+
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+
+@router.post("/analyze-image")
+async def analyze_crop_image(file: UploadFile = File(...)):
+    """Analyze a crop image with the configured disease model."""
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail="Upload a JPEG, PNG, or WebP crop image.",
+        )
+
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="The uploaded image is empty.")
+    if len(image_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Images must be smaller than 10 MB.")
+
+    from src.services.crop_disease_ai import analyze_image
+
+    suffix = Path(file.filename or "crop-image.jpg").suffix or ".jpg"
+    with NamedTemporaryFile(suffix=suffix, delete=False) as temporary_file:
+        temporary_file.write(image_bytes)
+        temporary_path = Path(temporary_file.name)
+
+    try:
+        return analyze_image(temporary_path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
 
 
 @router.post("/")
