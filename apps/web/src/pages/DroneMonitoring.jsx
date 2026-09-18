@@ -6,12 +6,62 @@ import { useWebSocketSimulator } from '../hooks/useWebSocketSimulator.js';
 import { droneData } from '../data/sampleData.js';
 import { useTranslation } from '../i18n/useTranslation.jsx';
 import { apiServerClient } from '../lib/apiServerClient.js';
-import { Battery, Camera, Gauge, MapPin, Navigation, Plane, Radio, ShieldCheck, Timer } from 'lucide-react';
+import { Battery, Camera, Gauge, MapPin, Navigation, Plane, Radio, ShieldCheck, Timer, Plug, Unplug } from 'lucide-react';
 
 const DroneMonitoring = () => {
   const { t } = useTranslation();
   const simulatedData = useWebSocketSimulator(droneData);
   const [telemetry, setTelemetry] = useState(simulatedData);
+  const [hardwareStatus, setHardwareStatus] = useState({ connected: false });
+  const [connectionString, setConnectionString] = useState('COM3');
+  const [hardwareError, setHardwareError] = useState('');
+
+  const refreshHardware = async () => {
+    try {
+      const statusResponse = await apiServerClient.fetch('/pixhawk/status');
+      const status = await statusResponse.json();
+      setHardwareStatus(status);
+      if (!status.connected) return;
+
+      const telemetryResponse = await apiServerClient.fetch('/pixhawk/telemetry');
+      if (!telemetryResponse.ok) return;
+      const live = await telemetryResponse.json();
+      setTelemetry({
+        battery: live.battery?.battery_remaining,
+        altitude: live.altitude,
+        speed: telemetry?.speed ?? 0,
+        location: `${live.gps.latitude.toFixed(5)}, ${live.gps.longitude.toFixed(5)}`,
+        gps: 'Locked',
+        camera: 'Unknown',
+      });
+    } catch (error) {
+      setHardwareError(error.message || 'Could not read Pixhawk telemetry.');
+    }
+  };
+
+  const connectHardware = async () => {
+    setHardwareError('');
+    try {
+      const response = await apiServerClient.fetch('/pixhawk/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection_string: connectionString }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Pixhawk connection failed.');
+      setHardwareStatus(data);
+      await refreshHardware();
+    } catch (error) {
+      setHardwareError(error.message || 'Pixhawk connection failed.');
+    }
+  };
+
+  const disconnectHardware = async () => {
+    await apiServerClient.fetch('/pixhawk/disconnect', { method: 'POST' });
+    setHardwareStatus({ connected: false });
+    setHardwareError('');
+    setTelemetry(simulatedData);
+  };
 
   useEffect(() => {
     let active = true;
@@ -20,6 +70,12 @@ const DroneMonitoring = () => {
       .then((data) => { if (active && data) setTelemetry(data); })
       .catch(() => undefined);
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    refreshHardware();
+    const interval = window.setInterval(refreshHardware, 5000);
+    return () => window.clearInterval(interval);
   }, []);
 
   return (
@@ -35,6 +91,22 @@ const DroneMonitoring = () => {
           </h1>
           <p className="text-muted-foreground mt-1">{t('drone.subtitle')}</p>
         </div>
+
+        <Card className="border border-[#cbd8c5] bg-[#f5f7f1]">
+          <CardHeader><CardTitle className="text-lg text-[#183d2d]">Hardware connection</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input value={connectionString} onChange={(event) => setConnectionString(event.target.value)} disabled={hardwareStatus.connected} className="flex-1 rounded-lg border border-[#cbd8c5] bg-white px-3 py-2 text-sm" placeholder="COM3 or /dev/ttyUSB0" />
+              {hardwareStatus.connected ? (
+                <Button type="button" variant="outline" onClick={disconnectHardware}><Unplug className="mr-2 h-4 w-4" />Disconnect</Button>
+              ) : (
+                <Button type="button" onClick={connectHardware}><Plug className="mr-2 h-4 w-4" />Connect Pixhawk</Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">{hardwareStatus.connected ? 'Live Pixhawk telemetry is active.' : 'Simulation telemetry is shown until a Pixhawk heartbeat is received.'}</p>
+            {hardwareError && <p className="text-sm text-red-600">{hardwareError}</p>}
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">

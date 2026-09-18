@@ -146,3 +146,23 @@ def get_armed_status():
     return {
         "armed": pixhawk.is_armed()
     }
+
+
+@router.get("/telemetry")
+def get_telemetry():
+    if pixhawk.connection is None:
+        raise HTTPException(status_code=503, detail="Pixhawk not connected")
+
+    try:
+        gps = pixhawk.get_gps()
+        battery = pixhawk.get_battery()
+        return {
+            "connected": True,
+            "gps": gps,
+            "battery": battery,
+            "altitude": gps["altitude"],
+            "mode": pixhawk.get_mode(),
+            "armed": pixhawk.is_armed(),
+        }
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
