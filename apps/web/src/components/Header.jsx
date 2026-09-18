@@ -1,7 +1,7 @@
 import React from 'react';
 import VoiceCommandButton from './VoiceCommandButton.jsx';
 import { useNavigate } from 'react-router-dom';
-import { Bell, User, Menu, Sun, Moon, Globe, Settings, HelpCircle } from 'lucide-react';
+import { Bell, Bot, User, Menu, Sun, Moon, Globe, Settings, HelpCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import {
@@ -52,6 +52,17 @@ const Header = ({ onMenuClick, unreadCount = 0 }) => {
 
         <div className="flex items-center gap-2">
           <VoiceCommandButton />
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/ai-chatbot')}
+            className="rounded-xl border border-[#d8e3d2] bg-white/80 text-[#183d2d] transition-all hover:bg-[#e8f1e2]"
+            aria-label="Open AI Assistant"
+            title="Open AI Assistant"
+          >
+            <Bot className="h-5 w-5" />
+          </Button>
 
           <Button
             variant="ghost"

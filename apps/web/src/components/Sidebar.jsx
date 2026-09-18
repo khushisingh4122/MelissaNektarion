@@ -10,8 +10,6 @@ import {
   FileText,
   Bell,
   Route,
-  Activity,
-  Radio,
   User,
   Settings,
   HelpCircle,
@@ -32,8 +30,6 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/mission-planning', label: t('nav.missionPlanning'), icon: Route },
     { path: '/pollination', label: t('nav.pollination'), icon: Bug },
     { path: '/crop-health', label: 'AI Insights', icon: Leaf },
-    { path: '/ai-chatbot', label: 'AI Assistant', icon: Activity },
-    { path: '/sensor-data', label: 'Sensor Data', icon: Radio },
     { path: '/alerts', label: t('nav.alerts'), icon: Bell },
   ];
 
