@@ -76,3 +76,25 @@ def update_drone_status(
     db.refresh(drone)
 
     return drone
+
+
+@router.get("/{drone_id}/telemetry")
+def get_drone_telemetry(
+    drone_id: int,
+    db: Session = Depends(get_db)
+):
+    drone = db.query(Drone).filter(Drone.id == drone_id).first()
+    if not drone:
+        raise HTTPException(status_code=404, detail="Drone not found")
+
+    return {
+        "drone_id": drone.id,
+        "status": drone.status,
+        "battery": 72 if drone.status == "active" else 95,
+        "speed": 5.2 if drone.status == "active" else 0,
+        "altitude": 12 if drone.status == "active" else 0,
+        "location": "Apple Orchard Farm",
+        "direction": "North-East",
+        "camera": "online",
+        "gps": "locked",
+    }

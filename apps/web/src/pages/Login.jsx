@@ -1,6 +1,8 @@
 import React from "react";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { apiServerClient } from "../lib/apiServerClient.js";
+import loginImage from "../../login.png";
 
 // ── Inline SVG icons (zero extra deps) ───────────────────────────────────────
 const EyeIcon = () => (
@@ -66,66 +68,81 @@ export default function Login() {
   };
 
   // ── Submit ─────────────────────────────────────────────────────────────────
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setErrors({});
     setLoading(true);
 
-    setTimeout(() => {
-      // Read users registered via Signup.jsx
-      let users = [];
-      try {
-        users = JSON.parse(localStorage.getItem("agri_users") || "[]");
-        if (!Array.isArray(users)) users = [];
-      } catch { users = []; }
+    try {
+      const response = await apiServerClient.fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
+      });
+      const data = await response.json();
 
-      // Match email (case-insensitive) + password
-      const match = users.find(
-        (u) =>
-          u.email.toLowerCase() === email.toLowerCase().trim() &&
-          u.password === password
-      );
-
-      setLoading(false);
-
-      if (!match) {
-        setErrors({ general: "Invalid email or password." });
+      if (!response.ok) {
+        setErrors({ general: data.detail || "Invalid email or password." });
         return;
       }
 
-      // Save session — compatible with DashboardLayout's "agri_user" key
-      const sessionUser = { name: match.name, email: match.email, loggedIn: true };
-      remember
-        ? localStorage.setItem("agri_user", JSON.stringify(sessionUser))
-        : sessionStorage.setItem("agri_user", JSON.stringify(sessionUser));
-
-        window.location.href = "/";
-    }, 950);
+      const sessionUser = { email: email.toLowerCase().trim(), loggedIn: true };
+      const storage = remember ? localStorage : sessionStorage;
+      localStorage.removeItem("agri_access_token");
+      sessionStorage.removeItem("agri_access_token");
+      storage.setItem("agri_access_token", data.access_token);
+      storage.setItem("agri_user", JSON.stringify(sessionUser));
+      window.location.href = "/dashboard";
+    } catch (error) {
+      console.error("Login error:", error);
+      setErrors({ general: "Cannot connect to the server. Please make sure the backend is running." });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const clearError = (field) => setErrors((prev) => ({ ...prev, [field]: "" }));
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="
-      min-h-screen flex items-center justify-center px-4 py-12
-      bg-[#0c1510] dark:bg-[#0c1510] relative overflow-hidden
-    ">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#dfe8d7] px-3 py-3 sm:px-6 lg:px-10">
 
       {/* Ambient glow blobs */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-700/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-emerald-600/8 rounded-full blur-[100px] pointer-events-none" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(200,223,157,0.12),transparent_35%)]" />
+
+      <div className="relative z-10 flex min-h-[calc(100vh-1.5rem)] w-full max-w-[1400px] overflow-hidden rounded-[34px] bg-[#f4f7f1] shadow-[0_30px_90px_rgba(0,0,0,0.35)]">
+        <section
+          className="relative hidden w-[46%] flex-col justify-between overflow-hidden p-8 text-white md:flex lg:p-12"
+          style={{ backgroundImage: `linear-gradient(180deg, rgba(12,48,30,0.08), rgba(8,38,23,0.72)), url('${loginImage}')`, backgroundSize: "cover", backgroundPosition: "center" }}
+        >
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#c8df9d] text-[#183d2d]"><LeafIcon /></div>
+              <div>
+                <p className="text-lg font-bold">Mellisanectorian</p>
+                <p className="text-[9px] uppercase tracking-[0.18em] text-white/70">Smart agriculture</p>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[#c8df9d]">Grow with clarity</p>
+            <h2 className="max-w-sm text-4xl font-bold leading-[1.05] tracking-[-0.04em] lg:text-5xl">The future of farming takes flight.</h2>
+            <p className="mt-5 max-w-sm text-sm leading-6 text-white/80">Connect your fields, crops, and intelligent tools in one calmer way to farm.</p>
+            <div className="mt-8 grid grid-cols-3 gap-2 border-t border-white/20 pt-5 text-[10px] text-white/75">
+              <span>Smart farming</span><span>Crop health</span><span>Better yield</span>
+            </div>
+          </div>
+        </section>
 
       {/* ── Card ─────────────────────────────────────────────────────────── */}
       <div className="
-        relative w-full max-w-[420px] rounded-2xl overflow-hidden
-        border border-white/[0.07] shadow-[0_32px_80px_rgba(0,0,0,0.6)]
-      " style={{ background: "linear-gradient(160deg,#141f14,#0f180f)" }}>
+        relative w-full max-w-[420px] self-stretch overflow-hidden bg-[#f8f7f1] md:w-[54%]
+      ">
 
         {/* Top accent bar */}
-        <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-green-500 to-transparent" />
+        <div className="h-[2px] w-full bg-[#1f5d3d]" />
 
         <div className="px-8 pt-9 pb-10">
 
@@ -134,8 +151,7 @@ export default function Login() {
             {/* Logo mark */}
             <div className="
               w-[52px] h-[52px] rounded-[14px] mb-4 flex items-center justify-center
-              bg-gradient-to-br from-green-500 to-emerald-600
-              shadow-[0_8px_24px_rgba(34,197,94,0.35)]
+              bg-[#1f5d3d]
             ">
               <span className="text-[#071a07]"><LeafIcon /></span>
             </div>
@@ -144,22 +160,19 @@ export default function Login() {
             <h1
               className="text-[1.65rem] font-bold tracking-tight"
               style={{
-                background: "linear-gradient(135deg, #86efac 0%, #d1fae5 45%, #6ee7b7 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
+                color: "#183d2d",
               }}
             >
-              Melissaa Nektorian
+              Mellisanectorian
             </h1>
 
-            <p className="mt-1 text-[13px] text-gray-500 tracking-[0.04em]">
-              Smart Agriculture AI Dashboard
+            <p className="mt-1 text-[13px] text-[#718446] tracking-[0.04em]">
+              Smart farming. Smarter decisions.
             </p>
 
             <div className="mt-5">
-              <p className="text-[15px] font-semibold text-white">Welcome back</p>
-              <p className="text-xs text-gray-500 mt-0.5">Sign in to continue to your dashboard</p>
+              <p className="text-[15px] font-semibold text-[#183d2d]">Welcome back</p>
+              <p className="text-xs text-slate-500 mt-0.5">Sign in to continue to your dashboard</p>
             </div>
           </div>
 
@@ -175,7 +188,7 @@ export default function Login() {
 
             {/* Email field */}
             <div>
-              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-widest mb-1.5">
+              <label className="block text-[11px] font-semibold text-[#718446] uppercase tracking-widest mb-1.5">
                 Email Address
               </label>
               <input
@@ -185,13 +198,13 @@ export default function Login() {
                 placeholder="you@example.com"
                 autoComplete="email"
                 className={`
-                  w-full px-4 py-[11px] rounded-xl text-sm text-white
-                  placeholder-gray-600 bg-white/[0.04]
+                  w-full px-4 py-[11px] rounded-xl text-sm text-[#183d2d]
+                  placeholder-slate-400 bg-white/70
                   border transition-all duration-200 outline-none
                   focus:ring-2 focus:ring-green-500/30
                   ${errors.email
                     ? "border-red-500/50 focus:border-red-400"
-                    : "border-white/[0.07] focus:border-green-500/50 hover:border-white/[0.12]"
+                    : "border-[#cbd8c5] focus:border-green-500/50 hover:border-[#9bb697]"
                   }
                 `}
               />
@@ -203,7 +216,7 @@ export default function Login() {
             {/* Password field */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">
+                <label className="text-[11px] font-semibold text-[#718446] uppercase tracking-widest">
                   Password
                 </label>
                 <button
@@ -222,13 +235,13 @@ export default function Login() {
                   placeholder="••••••••"
                   autoComplete="current-password"
                   className={`
-                    w-full px-4 py-[11px] pr-11 rounded-xl text-sm text-white
-                    placeholder-gray-600 bg-white/[0.04]
+                    w-full px-4 py-[11px] pr-11 rounded-xl text-sm text-[#183d2d]
+                    placeholder-slate-400 bg-white/70
                     border transition-all duration-200 outline-none
                     focus:ring-2 focus:ring-green-500/30
                     ${errors.password
                       ? "border-red-500/50 focus:border-red-400"
-                      : "border-white/[0.07] focus:border-green-500/50 hover:border-white/[0.12]"
+                      : "border-[#cbd8c5] focus:border-green-500/50 hover:border-[#9bb697]"
                     }
                   `}
                 />
@@ -239,7 +252,7 @@ export default function Login() {
                   aria-label={showPass ? "Hide password" : "Show password"}
                   className="
                     absolute right-3.5 top-1/2 -translate-y-1/2
-                    text-gray-600 hover:text-gray-300 transition-colors
+                    text-slate-400 hover:text-[#1f5d3d] transition-colors
                   "
                 >
                   {showPass ? <EyeOffIcon /> : <EyeIcon />}
@@ -265,7 +278,7 @@ export default function Login() {
                   focus:ring-2 focus:ring-green-500/40
                   ${remember
                     ? "bg-green-500 border-green-500"
-                    : "bg-white/[0.04] border-white/[0.10] hover:border-green-500/40"
+                    : "bg-white/70 border-[#cbd8c5] hover:border-green-500/40"
                   }
                 `}
               >
@@ -277,7 +290,7 @@ export default function Login() {
                 )}
               </div>
               <span
-                className="text-[13px] text-gray-400 cursor-pointer select-none"
+                className="text-[13px] text-slate-500 cursor-pointer select-none"
                 onClick={() => setRemember((v) => !v)}
               >
                 Remember me
@@ -291,12 +304,10 @@ export default function Login() {
               className="
                 w-full mt-1 py-[11px] rounded-xl text-[14px] font-semibold
                 text-[#071a07] tracking-wide
-                bg-gradient-to-r from-green-500 to-emerald-500
-                hover:from-green-400 hover:to-emerald-400
+                bg-[#1f5d3d] hover:bg-[#184a31]
                 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
                 transition-all duration-200
-                shadow-[0_4px_20px_rgba(34,197,94,0.3)]
-                hover:shadow-[0_4px_28px_rgba(34,197,94,0.45)]
+                shadow-[0_6px_18px_rgba(31,93,61,0.18)]
                 focus:outline-none focus:ring-2 focus:ring-green-500/50
               "
             >
@@ -310,7 +321,7 @@ export default function Login() {
           {/* ── Divider ─────────────────────────────────────────────────── */}
           <div className="flex items-center gap-3 my-5">
             <div className="flex-1 h-px bg-white/[0.06]" />
-            <span className="text-[11px] text-gray-600 tracking-wide">OR CONTINUE WITH</span>
+            <span className="text-[11px] text-slate-400 tracking-wide">OR CONTINUE WITH</span>
             <div className="flex-1 h-px bg-white/[0.06]" />
           </div>
 
@@ -319,9 +330,9 @@ export default function Login() {
             type="button"
             className="
               w-full flex items-center justify-center gap-2.5
-              py-[10px] rounded-xl text-[13px] text-gray-300
-              border border-white/[0.07] bg-white/[0.03]
-              hover:bg-white/[0.07] hover:border-white/[0.13]
+              py-[10px] rounded-xl text-[13px] text-slate-600
+              border border-[#cbd8c5] bg-white/55
+              hover:bg-white/85 hover:border-[#9bb697]
               transition-all duration-200
             "
           >
@@ -330,7 +341,7 @@ export default function Login() {
           </button>
 
           {/* ── Sign up link ─────────────────────────────────────────────── */}
-          <p className="text-center text-[13px] text-gray-500 mt-7">
+          <p className="text-center text-[13px] text-slate-500 mt-7">
             Don't have an account?{" "}
             <Link
               to="/signup"
@@ -347,6 +358,7 @@ export default function Login() {
       <p className="absolute bottom-4 text-[11px] text-gray-700 text-center w-full select-none">
         © {new Date().getFullYear()} Melissaa Nektorian · Smart Agriculture AI
       </p>
+      </div>
     </div>
   );
 }

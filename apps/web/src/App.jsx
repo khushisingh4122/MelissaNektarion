@@ -4,12 +4,16 @@ import ScrollToTop from './components/ScrollToTop.jsx';
 import { ThemeProvider } from './components/ThemeProvider.jsx';
 import { LanguageProvider } from './i18n/useTranslation.jsx';
 
+import HomePage from './pages/HomePage.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
 
 import DashboardOverview from './pages/DashboardOverview.jsx';
+import FarmIntelligence from './pages/FarmIntelligence.jsx';
+import SensorData from './pages/SensorData.jsx';
 import FarmMap from './pages/FarmMap.jsx';
 import AIChatbot from './pages/AIChatbot.jsx';
+import MissionPlanning from './pages/MissionPlanning.jsx';
 import DroneMonitoring from './pages/DroneMonitoring.jsx';
 import CropHealthAnalysis from './pages/CropHealthAnalysis.jsx';
 import PollinationMonitoring from './pages/PollinationMonitoring.jsx';
@@ -20,9 +24,8 @@ import ProfilePage from './pages/ProfilePage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
 import FarmerSupportPage from './pages/FarmerSupportPage.jsx';
 
-// ✅ AUTH CHECK
 const isAuth = () => {
-  return localStorage.getItem("agri_user") || sessionStorage.getItem("agri_user");
+  return localStorage.getItem('agri_user') || sessionStorage.getItem('agri_user');
 };
 
 function App() {
@@ -32,18 +35,21 @@ function App() {
         <Router>
           <ScrollToTop />
           <Routes>
-
-            {/* ✅ LOGIN SYSTEM */}
-            <Route
-              path="/"
-              element={isAuth() ? <DashboardOverview /> : <Login />}
-            />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/home" element={<HomePage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
 
-            {/* ✅ ALL OTHER PAGES */}
+            <Route
+              path="/dashboard"
+              element={isAuth() ? <DashboardOverview /> : <Login />}
+            />
+
+            <Route path="/farm-intelligence" element={<FarmIntelligence />} />
+            <Route path="/sensor-data" element={<SensorData />} />
             <Route path="/farm-map" element={<FarmMap />} />
             <Route path="/ai-chatbot" element={<AIChatbot />} />
+            <Route path="/mission-planning" element={<MissionPlanning />} />
             <Route path="/drone-monitoring" element={<DroneMonitoring />} />
             <Route path="/crop-health" element={<CropHealthAnalysis />} />
             <Route path="/pollination" element={<PollinationMonitoring />} />
@@ -53,7 +59,6 @@ function App() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/farmer-support" element={<FarmerSupportPage />} />
-
           </Routes>
         </Router>
       </ThemeProvider>

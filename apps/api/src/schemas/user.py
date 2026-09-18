@@ -10,3 +10,8 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+
+class UserProfileUpdate(BaseModel):
+    name: str
+    phone: str | None = None
