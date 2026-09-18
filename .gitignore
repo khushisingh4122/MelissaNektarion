@@ -3,6 +3,10 @@ dist/
 .env
 .env.local
 
+# Local Python environment and development database
+apps/api/venv/
+apps/api/*.db
+
 # Python cache
 __pycache__/
 *.pyc
