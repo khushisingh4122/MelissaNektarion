@@ -19,8 +19,9 @@ def register(
     user_data: UserRegister,
     db: Session = Depends(get_db)
 ):
+    normalized_email = user_data.email.strip().lower()
     existing_user = db.query(User).filter(
-        User.email == user_data.email
+        User.email == normalized_email
     ).first()
 
     if existing_user:
@@ -31,7 +32,7 @@ def register(
 
     user = User(
         name=user_data.name,
-        email=user_data.email,
+        email=normalized_email,
         password_hash=hash_password(user_data.password)
     )
 
@@ -52,8 +53,9 @@ def login(
     user_data: UserLogin,
     db: Session = Depends(get_db)
 ):
+    normalized_email = user_data.email.strip().lower()
     user = db.query(User).filter(
-        User.email == user_data.email
+        User.email == normalized_email
     ).first()
 
     if not user:
