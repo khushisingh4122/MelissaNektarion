@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
 import { useWebSocketSimulator } from '../hooks/useWebSocketSimulator.js';
 import { droneData } from '../data/sampleData.js';
 import { useTranslation } from '../i18n/useTranslation.jsx';

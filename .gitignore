@@ -10,6 +10,8 @@ apps/api/*.db
 # Python cache
 __pycache__/
 *.pyc
+**/__pycache__/
+**/*.pyc
 
 # Apple training dataset
 apple_training/images/
@@ -17,7 +19,7 @@ apple_training/labels/
 apps/apple_training/datasets/
 
 # Training outputs
-apple_training/runs/
+apps/apple_training/runs/
 
 # YOLO pretrained model
 yolo11n.pt

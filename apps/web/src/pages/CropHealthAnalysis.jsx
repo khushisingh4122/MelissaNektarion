@@ -1,20 +1,9 @@
 import React, { useState } from "react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { cropHealthData } from "../data/sampleData.js";
+import { Doughnut } from "react-chartjs-2";
 import { apiServerClient } from "../lib/apiServerClient.js";
-import {
-  AlertCircle,
-  ArrowUpRight,
-  CheckCircle2,
-  CircleAlert,
-  FileImage,
-  Leaf,
-  Loader2,
-  ScanLine,
-  ShieldCheck,
-  Sparkles,
-  Upload,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Upload } from "lucide-react";
 
 const CropHealthAnalysis = () => {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -45,51 +34,190 @@ const CropHealthAnalysis = () => {
     }
   };
 
+  // ✅ PIE CHART (uses your data)
+  const chartData = {
+    labels: ["Healthy", "Stressed", "Diseased"],
+    datasets: [
+      {
+        data: [
+          cropHealthData.healthyArea,
+          cropHealthData.stressedArea,
+          cropHealthData.diseasedArea
+        ],
+        backgroundColor: ["#22c55e", "#f59e0b", "#ef4444"]
+      }
+    ]
+  };
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <section className="relative overflow-hidden rounded-[28px] bg-[#173f30] px-6 py-7 text-white shadow-[0_24px_55px_rgba(24,61,45,0.18)] sm:px-8">
-          <div className="pointer-events-none absolute -right-8 -top-10 h-44 w-44 rounded-full border-[22px] border-[#b7d68f]/20" />
-          <div className="relative max-w-2xl">
-            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#c8df9d]"><Sparkles className="h-4 w-4" /> AI field intelligence</div>
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">See what your crops are telling you.</h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-white/70">Upload a leaf or field image and turn visual symptoms into a clear next step for your farm team.</p>
-          </div>
-        </section>
 
-        <section className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-[24px] border border-[#cbd8c5] bg-[#f7faf4] p-5 shadow-sm sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#718446]">New scan</p><h2 className="mt-2 text-xl font-bold text-[#183d2d]">Upload a crop image</h2><p className="mt-1 text-sm text-[#718446]">Best results come from a close, well-lit leaf photo.</p></div>
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#dcefd5] text-[#1f5d3d]"><ScanLine className="h-5 w-5" /></div>
+      <h1 className="text-2xl font-bold mb-6">Crop Health Analysis</h1>
+
+      <section className="mb-6 rounded-xl bg-white p-5 shadow">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-semibold">AI Disease Detection</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Upload a clear crop image to identify disease and receive a treatment recommendation.
+            </p>
+          </div>
+          <Upload className="h-5 w-5 text-emerald-700" aria-hidden="true" />
+        </div>
+
+        <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-emerald-200 bg-emerald-50/40 px-6 py-8 text-center hover:bg-emerald-50">
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="sr-only"
+            onChange={(event) => {
+              setSelectedImage(event.target.files?.[0] || null);
+              setAnalysis(null);
+              setUploadError("");
+            }}
+          />
+          <Upload className="mb-2 h-7 w-7 text-emerald-700" aria-hidden="true" />
+          <span className="text-sm font-medium text-emerald-900">
+            {selectedImage ? selectedImage.name : "Choose a crop image"}
+          </span>
+          <span className="mt-1 text-xs text-gray-500">JPEG, PNG, or WebP up to 10 MB</span>
+        </label>
+
+        <button
+          type="button"
+          onClick={analyzeImage}
+          disabled={!selectedImage || isAnalyzing}
+          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isAnalyzing && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          {isAnalyzing ? "Analyzing image..." : "Analyze crop image"}
+        </button>
+
+        {uploadError && (
+          <div className="mt-4 flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>{uploadError}</span>
+          </div>
+        )}
+
+        {analysis && (
+          <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex items-center gap-2 font-semibold text-emerald-950">
+              <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+              {analysis.status === "analyzed" ? "AI analysis complete" : "AI model setup required"}
             </div>
-            <label className="mt-6 flex min-h-[190px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#b9d19d] bg-white px-5 text-center transition hover:border-[#6e9d58] hover:bg-[#f5faef]">
-              <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => { setSelectedImage(event.target.files?.[0] || null); setAnalysis(null); setUploadError(""); }} />
-              {selectedImage ? <FileImage className="h-9 w-9 text-[#1f5d3d]" /> : <Upload className="h-9 w-9 text-[#6e9d58]" />}
-              <span className="mt-3 text-sm font-semibold text-[#183d2d]">{selectedImage ? selectedImage.name : "Choose an image to scan"}</span>
-              <span className="mt-1 text-xs text-[#718446]">JPEG, PNG, or WebP · up to 10 MB</span>
-            </label>
-            <button type="button" onClick={analyzeImage} disabled={!selectedImage || isAnalyzing} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1f5d3d] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#174b31] disabled:cursor-not-allowed disabled:opacity-45">
-              {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />}{isAnalyzing ? "Reading crop signals..." : "Run AI scan"}
-            </button>
-            {uploadError && <div className="mt-4 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{uploadError}</span></div>}
+            {analysis.disease && (
+              <p className="mt-3 text-sm text-gray-700">
+                Detected: <strong>{analysis.disease}</strong> ({analysis.confidence}% confidence)
+              </p>
+            )}
+            {analysis.solution && (
+              <p className="mt-2 text-sm text-gray-700"><strong>Suggested solution:</strong> {analysis.solution}</p>
+            )}
+            {analysis.message && <p className="mt-2 text-sm text-amber-800">{analysis.message}</p>}
+            {analysis.detections?.map((detection, index) => (
+              <div key={`${detection.disease}-${index}`} className="mt-3 border-t border-emerald-200 pt-3 text-sm text-gray-700">
+                <strong>{detection.disease}</strong> ({detection.confidence}% confidence)
+                <p>{detection.solution}</p>
+              </div>
+            ))}
           </div>
+        )}
+      </section>
 
-          <div className="rounded-[24px] bg-[#e8f1e2] p-5 sm:p-6">
-            <div className="flex items-center gap-2 text-[#557a45]"><ShieldCheck className="h-5 w-5" /><p className="text-xs font-semibold uppercase tracking-[0.18em]">Scan guide</p></div>
-            <h2 className="mt-4 text-xl font-bold text-[#183d2d]">A better diagnosis starts with a better frame.</h2>
-            <div className="mt-6 space-y-4 text-sm text-[#55705c]">
-              {[[Leaf, "Show the symptom", "Fill most of the frame with the affected leaf or fruit."], [CircleAlert, "Avoid harsh shadows", "Use daylight and keep the camera steady."], [CheckCircle2, "Confirm before treating", "Use the result as guidance and ask an agronomist for serious cases."]].map(([Icon, title, copy]) => <div key={title} className="flex gap-3"><Icon className="mt-0.5 h-5 w-5 shrink-0 text-[#557a45]" /><div><p className="font-semibold text-[#355340]">{title}</p><p className="mt-0.5 text-xs leading-5">{copy}</p></div></div>)}
+      {/* TOP GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        {/* ✅ HEATMAP */}
+        <div className="bg-white p-4 rounded-xl shadow">
+          <h2 className="mb-3 font-semibold">Crop Health Heatmap</h2>
+
+          <div className="grid grid-cols-8 gap-1">
+            {cropHealthData.heatmapData.map((row, i) =>
+              row.map((cell, j) => (
+                <div
+                  key={`${i}-${j}`}
+                  className="h-10 rounded"
+                  style={{
+                    backgroundColor:
+                      cell > 85
+                        ? "#22c55e"
+                        : cell > 75
+                        ? "#84cc16"
+                        : cell > 65
+                        ? "#eab308"
+                        : "#ef4444"
+                  }}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* ✅ PIE */}
+        <div className="bg-white p-4 rounded-xl shadow">
+          <h2 className="mb-3 font-semibold">Health Distribution</h2>
+          <div className="h-64">
+            <Doughnut data={chartData} />
+          </div>
+        </div>
+
+      </div>
+
+      {/* ✅ DISEASES */}
+      <div className="mt-6 bg-white p-4 rounded-xl shadow">
+        <h3 className="font-semibold mb-3">Disease Detection</h3>
+
+        {cropHealthData.diseases.map((d, i) => (
+          <div key={i} className="border p-3 rounded mb-2 flex justify-between">
+            <div>
+              <p className="font-medium">{d.name}</p>
+              <p className="text-sm text-gray-500">
+                Affected Area: {d.affectedArea}%
+              </p>
+              <p className="text-sm text-gray-500">
+                Confidence: {d.confidence}%
+              </p>
             </div>
+
+            <span
+              className={`px-2 py-1 rounded text-white text-xs
+                ${d.severity === "High" ? "bg-red-500" :
+                  d.severity === "Medium" ? "bg-yellow-500" :
+                  "bg-gray-500"}`}
+            >
+              {d.severity}
+            </span>
           </div>
-        </section>
+        ))}
+      </div>
 
-        {analysis && <section className="rounded-[24px] border border-[#b9d19d] bg-white p-5 shadow-sm sm:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#718446]">Latest scan</p><h2 className="mt-2 text-2xl font-bold text-[#183d2d]">{analysis.status === "analyzed" ? "Analysis complete" : "Model setup required"}</h2></div><CheckCircle2 className="h-6 w-6 text-[#5d9347]" /></div>{analysis.disease && <div className="mt-5 flex flex-col gap-4 rounded-2xl bg-[#eef6e9] p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs uppercase tracking-[0.16em] text-[#718446]">Primary signal</p><p className="mt-1 text-xl font-bold text-[#183d2d]">{analysis.disease}</p><p className="mt-1 text-sm text-[#55705c]">Suggested solution: {analysis.solution}</p></div><div className="rounded-xl bg-white px-4 py-3 text-center"><p className="text-2xl font-bold text-[#1f5d3d]">{analysis.confidence}%</p><p className="text-[10px] uppercase tracking-widest text-[#718446]">confidence</p></div></div>}{analysis.message && <p className="mt-4 text-sm text-amber-800">{analysis.message}</p>}{analysis.detections?.map((detection, index) => <div key={`${detection.disease}-${index}`} className="mt-3 flex items-center justify-between border-t border-[#e1eadb] pt-3 text-sm"><span className="font-semibold text-[#355340]">{detection.disease}</span><span className="text-[#718446]">{detection.confidence}% · {detection.solution}</span></div>)}</section>}
+      {/* ✅ PESTS */}
+      <div className="mt-6 bg-white p-4 rounded-xl shadow">
+        <h3 className="font-semibold mb-3">Pest Alerts</h3>
 
-        <section className="grid gap-5 lg:grid-cols-2">
-          <div className="rounded-[24px] border border-[#d8e3d2] bg-white p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#718446]">Watchlist</p><h2 className="mt-1 text-xl font-bold text-[#183d2d]">Known disease signals</h2></div><ArrowUpRight className="h-5 w-5 text-[#718446]" /></div><div className="mt-5 space-y-3">{cropHealthData.diseases.map((disease) => <div key={disease.name} className="flex items-center justify-between rounded-xl bg-[#f5f8f2] p-3"><div><p className="text-sm font-semibold text-[#355340]">{disease.name}</p><p className="mt-1 text-xs text-[#718446]">{disease.confidence}% confidence · {disease.affectedArea}% area</p></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${disease.severity === "High" ? "bg-red-100 text-red-700" : disease.severity === "Medium" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{disease.severity}</span></div>)}</div></div>
-          <div className="rounded-[24px] border border-[#d8e3d2] bg-white p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#718446]">Field alerts</p><h2 className="mt-1 text-xl font-bold text-[#183d2d]">Pest watch</h2></div><CircleAlert className="h-5 w-5 text-amber-600" /></div><div className="mt-5 space-y-3">{cropHealthData.pests.map((pest) => <div key={pest.name} className="flex items-center justify-between rounded-xl bg-[#fff9ed] p-3"><div><p className="text-sm font-semibold text-[#6b4b1f]">{pest.name}</p><p className="mt-1 text-xs text-[#92734a]">{pest.location} · {pest.detected}</p></div><span className="rounded-full bg-[#f6e5b9] px-2.5 py-1 text-[10px] font-bold uppercase text-[#80571f]">{pest.severity}</span></div>)}</div></div>
-        </section>
+        {cropHealthData.pests.map((p, i) => (
+          <div key={i} className="border p-3 rounded mb-2 flex justify-between">
+            <div>
+              <p className="font-medium">{p.name}</p>
+              <p className="text-sm text-gray-500">
+                Location: {p.location}
+              </p>
+              <p className="text-sm text-gray-500">
+                Detected: {p.detected}
+              </p>
+            </div>
+
+            <span
+              className={`px-2 py-1 rounded text-white text-xs
+                ${p.severity === "High" ? "bg-red-500" :
+                  p.severity === "Medium" ? "bg-yellow-500" :
+                  "bg-gray-500"}`}
+            >
+              {p.severity}
+            </span>
+          </div>
+        ))}
       </div>
 
     </DashboardLayout>
