@@ -6,12 +6,12 @@ DATASET = ROOT / "datasets" / "apple_crop_health"
 DATA_CONFIG = DATASET / "data.yaml"
 
 
-def validate_dataset() -> None:
+def validate_dataset(dataset: Path) -> None:
     required = [
-        DATASET / "images" / "train",
-        DATASET / "images" / "val",
-        DATASET / "labels" / "train",
-        DATASET / "labels" / "val",
+        dataset / "images" / "train",
+        dataset / "images" / "val",
+        dataset / "labels" / "train",
+        dataset / "labels" / "val",
     ]
     missing = [str(path) for path in required if not path.is_dir()]
     if missing:
@@ -26,14 +26,17 @@ def main() -> None:
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=-1)
     parser.add_argument("--name", default="multi_crop_disease_pest")
+    parser.add_argument("--dataset", type=Path, default=DATASET)
     args = parser.parse_args()
 
-    validate_dataset()
+    dataset = args.dataset
+    data_config = dataset / "data.yaml"
+    validate_dataset(dataset)
     from ultralytics import YOLO
 
     model = YOLO("yolo11n.pt")
     model.train(
-        data=str(DATA_CONFIG),
+        data=str(data_config),
         epochs=args.epochs,
         imgsz=args.imgsz,
         batch=args.batch,
