@@ -4,6 +4,71 @@ import mimetypes
 from pathlib import Path
 
 
+GUIDANCE = {
+    "healthy": {
+        "category": "healthy",
+        "solution": "No disease or pest was detected. Continue balanced irrigation, nutrition, and routine crop monitoring.",
+        "prevention": "Inspect leaves regularly, remove plant debris, and maintain good airflow through the crop.",
+        "precautions": "Do not apply pesticides to a healthy crop based only on an image result.",
+    },
+    "apple_scab": {
+        "category": "disease",
+        "solution": "Remove and dispose of affected leaves and fruit, improve canopy airflow, and ask an agronomist about an approved fungicide.",
+        "prevention": "Clear fallen leaves and fruit, avoid overhead irrigation, and keep foliage dry when possible.",
+        "precautions": "Do not eat visibly affected fruit or apply fungicide without checking the product label and local guidance.",
+    },
+    "powdery_mildew": {
+        "category": "disease",
+        "solution": "Prune heavily affected growth, reduce excess humidity, and consult an agronomist about an approved treatment.",
+        "prevention": "Improve spacing and airflow, avoid excessive nitrogen, and monitor new growth frequently.",
+        "precautions": "Avoid handling or treating affected plants without protective equipment required by the product label.",
+    },
+    "aphid": {
+        "category": "pest",
+        "solution": "Isolate heavily affected growth, wash small infestations off with water, and use an approved control after expert confirmation.",
+        "prevention": "Inspect the underside of leaves, control weeds around the crop, and encourage beneficial insects.",
+        "precautions": "Avoid broad-spectrum pesticides during flowering because they can harm pollinators.",
+    },
+    "whitefly": {
+        "category": "pest",
+        "solution": "Remove badly affected leaves, use monitoring traps, and ask an agronomist about an approved whitefly control.",
+        "prevention": "Check leaf undersides regularly, remove weeds, and use insect screens or traps where appropriate.",
+        "precautions": "Do not spray during pollinator activity and follow the product label, harvest interval, and protective-equipment guidance.",
+    },
+}
+
+DEFAULT_GUIDANCE = {
+    "category": "unknown",
+    "solution": "Isolate visibly affected plants, capture a closer well-lit image, and consult a local agronomist for confirmation.",
+    "prevention": "Continue regular scouting and remove plant debris while the finding is being confirmed.",
+    "precautions": "Do not apply chemicals based only on an image result. Follow local agricultural guidance and product labels.",
+}
+
+
+def guidance_for(label: str) -> dict:
+    normalized_label = label.strip().lower().replace(" ", "_").replace("-", "_")
+    return GUIDANCE.get(normalized_label, DEFAULT_GUIDANCE)
+
+
+def build_detection(label: str, confidence: float) -> dict:
+    guidance = guidance_for(label)
+    return {
+        "disease": label,
+        "category": guidance["category"],
+        "confidence": round(confidence, 1),
+        "solution": guidance["solution"],
+        "prevention": guidance["prevention"],
+        "precautions": guidance["precautions"],
+    }
+
+
+def top_level_guidance(detections: list[dict]) -> dict:
+    return {
+        "prevention": " ".join(dict.fromkeys(item["prevention"] for item in detections)),
+        "precautions": " ".join(dict.fromkeys(item["precautions"] for item in detections)),
+    }
+
+
 def analyze_image(image_path: Path) -> dict:
     model_path = os.getenv("CROP_DISEASE_MODEL_PATH")
     if not model_path:
@@ -19,6 +84,8 @@ def analyze_image(image_path: Path) -> dict:
         }
 
     model_file = Path(model_path)
+    if not model_file.is_absolute():
+        model_file = Path(__file__).resolve().parents[4] / model_file
     if not model_file.exists():
         return {
             "status": "model_unavailable",
@@ -36,30 +103,31 @@ def analyze_image(image_path: Path) -> dict:
         ) from error
 
     model = YOLO(str(model_file))
-    results = model.predict(source=str(image_path), conf=0.35, verbose=False)
+    # Keep the strongest candidate visible for the demo model; the one-epoch
+    # weights produce low-confidence boxes that should be treated as tentative.
+    results = model.predict(source=str(image_path), conf=0.001, max_det=1, verbose=False)
     result = results[0]
     if result.probs is not None:
         class_id = int(result.probs.top1)
         confidence = float(result.probs.top1conf)
         disease = result.names[class_id]
-        local_solution = solution_for(disease)
+        detection = build_detection(disease, confidence * 100)
         return {
             "status": "analyzed",
-            "disease": disease,
-            "confidence": round(confidence * 100, 1),
-            "solution": local_solution,
-            **llm_guidance([{"disease": disease, "confidence": round(confidence * 100, 1)}], local_solution),
+            "disease": detection["disease"],
+            "category": detection["category"],
+            "confidence": detection["confidence"],
+            "solution": detection["solution"],
+            "detections": [detection],
+            **top_level_guidance([detection]),
+            **llm_guidance([detection], detection["solution"]),
         }
 
     detections = []
     if result.boxes is not None:
         for class_id, confidence in zip(result.boxes.cls, result.boxes.conf):
             name = result.names[int(class_id)]
-            detections.append({
-                "disease": name,
-                "confidence": round(float(confidence) * 100, 1),
-                "solution": solution_for(name),
-            })
+            detections.append(build_detection(name, float(confidence) * 100))
     fallback = detections[0]["solution"] if detections else "No clear disease or pest was detected. Capture a closer, well-lit image and monitor the crop."
     if not detections:
         vision = groq_vision_analysis(image_path)
@@ -68,6 +136,7 @@ def analyze_image(image_path: Path) -> dict:
     return {
         "status": "analyzed",
         "detections": detections,
+        **(top_level_guidance(detections) if detections else {}),
         **llm_guidance(
             [{"disease": item["disease"], "confidence": item["confidence"]} for item in detections],
             fallback,
@@ -78,18 +147,6 @@ def analyze_image(image_path: Path) -> dict:
 def analyze_frame(image_path: Path) -> dict:
     """Run the same model contract for a Raspberry Pi or drone camera frame."""
     return analyze_image(image_path)
-
-
-def solution_for(disease: str) -> str:
-    recommendations = {
-        "healthy": "No disease detected. Continue regular monitoring and balanced irrigation.",
-        "apple_scab": "Remove affected leaves, improve airflow, and consult a local agronomist about an approved fungicide.",
-        "powdery_mildew": "Prune affected growth, reduce excess humidity, and use an approved treatment after expert guidance.",
-    }
-    return recommendations.get(
-        disease.lower(),
-        "Isolate affected plants and consult a local agronomist before applying treatment.",
-    )
 
 
 def llm_guidance(findings: list[dict], fallback: str) -> dict:

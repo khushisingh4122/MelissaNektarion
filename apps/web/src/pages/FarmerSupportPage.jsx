@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, BatteryCharging, Bug, ChevronDown, FlaskConical, Leaf, Mail, MapPinned, MessageCircle, Paperclip, Phone, PhoneCall, Plane, Radio, Send, Sprout, Stethoscope } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Award, BatteryCharging, Bug, ChevronDown, FileText, FlaskConical, Leaf, Mail, MapPinned, MessageCircle, Paperclip, Phone, PhoneCall, Plane, Radio, Search, Send, Sprout, Stethoscope, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import { Card, CardContent } from '../components/ui/card';
@@ -12,6 +12,8 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useTranslation } from '../i18n/useTranslation.jsx';
 import { supportContacts } from '../data/sampleSupportContacts.js';
+import { governmentSchemes } from '../data/sampleData.js';
+import SchemeCard from '../components/SchemeCard.jsx';
 
 const categories = [
   ['Drone Issues', 'Connection, battery, startup, flight problems', Plane, 'bg-blue-50 border-blue-100 text-blue-700'],
@@ -41,6 +43,24 @@ export default function FarmerSupportPage() {
   const [problemType, setProblemType] = useState('');
   const [description, setDescription] = useState('');
   const [openFaq, setOpenFaq] = useState(null);
+  const [directoryMode, setDirectoryMode] = useState('schemes');
+  const [directorySearch, setDirectorySearch] = useState('');
+  const [directoryCategory, setDirectoryCategory] = useState('all');
+
+  const specialistCategories = ['all', ...new Set(supportContacts.map((contact) => contact.category))];
+  const directorySchemes = governmentSchemes.filter((scheme) => {
+    const term = directorySearch.toLowerCase();
+    return (scheme.name.toLowerCase().includes(term) || scheme.description.toLowerCase().includes(term))
+      && (directoryCategory === 'all' || scheme.type === directoryCategory);
+  });
+  const directorySpecialists = supportContacts.filter((contact) => {
+    const term = directorySearch.toLowerCase();
+    return (contact.name.toLowerCase().includes(term) || contact.specialization.toLowerCase().includes(term) || contact.category.toLowerCase().includes(term))
+      && (directoryCategory === 'all' || contact.category === directoryCategory);
+  }).sort((first, second) => first.distance - second.distance);
+  const directoryCategories = directoryMode === 'schemes'
+    ? ['all', ...new Set(governmentSchemes.map((scheme) => scheme.type))]
+    : specialistCategories;
 
   const submitReport = (event) => {
     event.preventDefault();
@@ -62,6 +82,41 @@ export default function FarmerSupportPage() {
             <div className="flex items-center gap-3"><div className="rounded-full bg-emerald-100 p-3 text-emerald-700"><MessageCircle className="h-6 w-6" /></div><div><h1 className="text-2xl font-bold text-emerald-950 sm:text-3xl">Farmer Support</h1><p className="text-sm text-emerald-900/70">Get help, find answers, and resolve issues quickly.</p></div></div>
             <p className="absolute right-8 top-8 hidden max-w-[150px] rotate-[-3deg] text-right text-sm font-semibold italic text-emerald-900 sm:block">We&apos;re here to help<br />you grow! <Leaf className="ml-auto mt-1 h-4 w-4" /></p>
           </div>
+        </section>
+
+        <section className="space-y-4 rounded-2xl border border-emerald-100 bg-white/90 p-5 shadow-sm">
+          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700">Farmer resource directory</p>
+              <h2 className="mt-1 text-xl font-bold text-slate-900">Find schemes and people who can help</h2>
+              <p className="mt-1 text-sm text-slate-500">Search official support programs, disease experts, fertilizer suppliers, and local agriculture officers.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:min-w-[300px]">
+              <button type="button" onClick={() => { setDirectoryMode('schemes'); setDirectoryCategory('all'); }} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition ${directoryMode === 'schemes' ? 'border-emerald-700 bg-emerald-700 text-white shadow-sm' : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'}`}><FileText className="h-4 w-4 shrink-0" /><span>Find a scheme</span></button>
+              <button type="button" onClick={() => { setDirectoryMode('specialists'); setDirectoryCategory('all'); }} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition ${directoryMode === 'specialists' ? 'border-emerald-700 bg-emerald-700 text-white shadow-sm' : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'}`}><PhoneCall className="h-4 w-4 shrink-0" /><span>Get help numbers</span></button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              [governmentSchemes.length, 'Government schemes', FileText],
+              [supportContacts.length, 'Nearby specialists', Users],
+              [supportContacts.filter((contact) => contact.category === 'Fertilizer Suppliers').length, 'Fertilizer suppliers', FlaskConical],
+              [supportContacts.filter((contact) => contact.category === 'Pest Control Experts').length, 'Disease & pest experts', Stethoscope],
+            ].map(([count, label, Icon]) => <div key={label} className="flex items-center gap-3 rounded-xl bg-emerald-50 p-3"><Icon className="h-5 w-5 text-emerald-700" /><div><p className="text-xl font-bold text-emerald-950">{count}</p><p className="text-[11px] text-emerald-800/70">{label}</p></div></div>)}
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input value={directorySearch} onChange={(event) => setDirectorySearch(event.target.value)} placeholder={directoryMode === 'schemes' ? 'Search schemes, benefits, or eligibility...' : 'Search names, expertise, or categories...'} className="h-11 bg-slate-50 pl-10" /></div>
+            <Select value={directoryCategory} onValueChange={setDirectoryCategory}><SelectTrigger className="h-11 w-full sm:w-64"><SelectValue placeholder="Filter directory" /></SelectTrigger><SelectContent>{directoryCategories.map((category) => <SelectItem key={category} value={category}>{category === 'all' ? 'All categories' : category}</SelectItem>)}</SelectContent></Select>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800"><span className="h-2 w-2 rounded-full bg-emerald-600" />{directoryMode === 'schemes' ? 'Government schemes' : 'Specialist help numbers'}</div>
+          {directoryMode === 'schemes' ? (
+            directorySchemes.length ? <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{directorySchemes.map((scheme) => <SchemeCard key={scheme.id} scheme={scheme} />)}</div> : <p className="py-8 text-center text-sm text-slate-500">No schemes match your search.</p>
+          ) : (
+            directorySpecialists.length ? <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{directorySpecialists.map((contact) => <Card key={contact.id} className="border-slate-200"><CardContent className="space-y-4 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold text-slate-900">{contact.name}</h3><p className="mt-1 text-xs text-emerald-700">{contact.category}</p></div><span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700"><Award className="h-3 w-3" />{contact.rating}</span></div><div className="space-y-2 text-xs text-slate-500"><p>{contact.specialization} · {contact.experience}</p><p className="flex items-center gap-1"><MapPinned className="h-3.5 w-3.5" />{contact.location} · {contact.distance} km away</p><p>{contact.reviews} farmer reviews</p></div><div className="flex gap-2 border-t pt-3"><Button asChild className="flex-1 gap-2 bg-emerald-700 hover:bg-emerald-800"><a href={`tel:${contact.phone}`}><PhoneCall className="h-4 w-4" />Call</a></Button><Button asChild variant="outline" className="gap-2"><a href={`tel:${contact.phone}`} aria-label={`Contact ${contact.name}`}><Phone className="h-4 w-4" /></a></Button></div></CardContent></Card>)}</div> : <p className="py-8 text-center text-sm text-slate-500">No specialists match your search.</p>
+          )}
         </section>
 
         <div className="grid gap-5 lg:grid-cols-[1.45fr_0.8fr]">

@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -10,11 +12,12 @@ router = APIRouter(
 )
 
 
-pixhawk = Pixhawk()
+pixhawk = Pixhawk(baud=int(os.getenv("PIXHAWK_BAUD", "57600")))
 
 
 class PixhawkConnection(BaseModel):
-    connection_string: str
+    connection_string: str | None = None
+    baud: int | None = None
 
 
 @router.post("/connect")
@@ -25,7 +28,14 @@ def connect_pixhawk(data: PixhawkConnection):
             "message": "Pixhawk is already connected"
         }
 
-    success = pixhawk.connect(data.connection_string)
+    connection_string = data.connection_string or os.getenv("PIXHAWK_CONNECTION")
+    if not connection_string:
+        raise HTTPException(
+            status_code=400,
+            detail="Set PIXHAWK_CONNECTION or provide connection_string.",
+        )
+
+    success = pixhawk.connect(connection_string, data.baud)
 
     if not success:
         raise HTTPException(
@@ -35,7 +45,8 @@ def connect_pixhawk(data: PixhawkConnection):
 
     return {
         "connected": True,
-        "message": "Pixhawk connected successfully"
+        "message": "Pixhawk connected successfully",
+        "connection_string": connection_string,
     }
 
 
@@ -65,7 +76,8 @@ def pixhawk_status():
 
     return {
         "connected": True,
-        "message": "Pixhawk connected"
+        "message": "Pixhawk connected",
+        "connection_configured": bool(os.getenv("PIXHAWK_CONNECTION")),
     }
 
 
@@ -156,10 +168,12 @@ def get_telemetry():
     try:
         gps = pixhawk.get_gps()
         battery = pixhawk.get_battery()
+        speed = pixhawk.get_speed()
         return {
             "connected": True,
             "gps": gps,
             "battery": battery,
+            "speed": speed,
             "altitude": gps["altitude"],
             "mode": pixhawk.get_mode(),
             "armed": pixhawk.is_armed(),

@@ -29,7 +29,6 @@ import DashboardLayout from '../components/DashboardLayout.jsx';
 import { Card, CardContent } from '../components/ui/card';
 import { pollinationData } from '../data/sampleData.js';
 import { useTranslation } from '../i18n/useTranslation.jsx';
-import dashImage from '../../dash.png';
 
 const kpis = [
   ['Total Drones', '2', '1 Active • 1 Idle', Plane, 'text-emerald-700 bg-emerald-50'],
@@ -73,11 +72,13 @@ export default function DashboardOverview() {
 
       <div className="mx-auto max-w-7xl space-y-6 px-1 pb-4">
         <section className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr]">
-          <div
-            className="relative min-h-[270px] overflow-hidden rounded-[22px] border border-[#cbd8c5] bg-[#dfe8d7] bg-cover bg-center p-4 shadow-[0_18px_45px_rgba(24,61,45,0.10)] sm:p-5"
-            style={{ backgroundImage: `url('${dashImage}')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
-          >
-            <div className="relative z-10 flex h-full flex-col justify-between">
+          <div className="space-y-4">
+            <div
+              className="relative h-[235px] overflow-hidden rounded-[22px] border border-[#cbd8c5] bg-cover bg-center p-4 shadow-[0_18px_45px_rgba(24,61,45,0.10)] sm:h-[255px] sm:p-5"
+              style={{ backgroundImage: "url('/ai-images/IMG_0044.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-[#f5f7f1]/95 via-[#f5f7f1]/72 to-[#f5f7f1]/10" />
+              <div className="relative z-10 flex h-full flex-col justify-between">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#718446]">{currentDate}</p>
@@ -105,6 +106,18 @@ export default function DashboardOverview() {
                   <button onClick={() => navigate('/crop-health')} className="rounded-xl border border-[#b7cdb0] bg-[#f5f7f1] px-4 py-2.5 text-xs font-semibold text-[#355340]">Crop health</button>
                 </div>
               </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {fieldCards.map(([title, status, detail, Icon, tone]) => {
+                const tones = {
+                  emerald: 'border-emerald-100 bg-emerald-50 text-emerald-800',
+                  cyan: 'border-cyan-100 bg-cyan-50 text-cyan-800',
+                  amber: 'border-amber-100 bg-amber-50 text-amber-800',
+                };
+                return <div key={title} className={`min-w-0 rounded-2xl border p-3 ${tones[tone]}`}><div className="flex items-center justify-between gap-2"><Icon className="h-4 w-4 shrink-0" /><span className="truncate text-[10px] font-semibold uppercase tracking-[0.12em]">{status}</span></div><p className="mt-3 truncate text-xs font-bold text-slate-800">{title}</p><p className="mt-1 truncate text-[10px] text-slate-500">{detail}</p></div>;
+              })}
             </div>
           </div>
 

@@ -114,11 +114,19 @@ const CropHealthAnalysis = () => {
             {analysis.solution && (
               <p className="mt-2 text-sm text-gray-700"><strong>Suggested solution:</strong> {analysis.solution}</p>
             )}
+            {analysis.prevention && (
+              <p className="mt-2 text-sm text-sky-900"><strong>Prevention:</strong> {analysis.prevention}</p>
+            )}
+            {analysis.precautions && (
+              <p className="mt-2 text-sm text-amber-900"><strong>Precautions:</strong> {analysis.precautions}</p>
+            )}
             {analysis.message && <p className="mt-2 text-sm text-amber-800">{analysis.message}</p>}
             {analysis.detections?.map((detection, index) => (
               <div key={`${detection.disease}-${index}`} className="mt-3 border-t border-emerald-200 pt-3 text-sm text-gray-700">
                 <strong>{detection.disease}</strong> ({detection.confidence}% confidence)
-                <p>{detection.solution}</p>
+                <p className="mt-1"><strong>Solution:</strong> {detection.solution}</p>
+                {detection.prevention && <p className="mt-1"><strong>Prevention:</strong> {detection.prevention}</p>}
+                {detection.precautions && <p className="mt-1 text-amber-900"><strong>Precautions:</strong> {detection.precautions}</p>}
               </div>
             ))}
           </div>

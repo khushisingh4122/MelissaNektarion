@@ -1,6 +1,5 @@
 import hashlib
 import subprocess
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
@@ -8,20 +7,28 @@ ROOT = Path(__file__).parent
 REPO = ROOT / "datasets" / "plantdoc_raw"
 OUTPUT = ROOT / "datasets" / "apple_crop_health"
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+TARGET_CLASSES = {
+    "Apple leaf": "healthy",
+    "Apple Scab Leaf": "apple_scab",
+    "Squash Powdery mildew leaf": "powdery_mildew",
+    "Tomato two spotted spider mites leaf": "spider_mites",
+}
 
 
-def git_tree() -> dict[str, str]:
+def git_tree() -> list[str]:
     output = subprocess.check_output(
-        ["git", "-C", str(REPO), "ls-tree", "-r", "-z", "HEAD"],
+        ["git", "-C", str(REPO), "ls-tree", "-r", "--name-only", "HEAD"],
+        text=True,
     )
-    entries = {}
-    for entry in output.split(b"\0"):
-        if not entry:
-            continue
-        metadata, path_bytes = entry.split(b"\t", 1)
-        object_hash = metadata.split()[2].decode()
-        entries[path_bytes.decode("utf-8", errors="replace")] = object_hash
-    return entries
+    return output.splitlines()
+
+
+def blob_hash(path: str) -> str:
+    output = subprocess.check_output(
+        ["git", "-C", str(REPO), "ls-tree", "HEAD", "--", path],
+        text=True,
+    )
+    return output.split()[2]
 
 
 def read_blob(object_hash: str) -> bytes:
@@ -29,72 +36,45 @@ def read_blob(object_hash: str) -> bytes:
 
 
 def safe_name(source_path: str) -> str:
-    original = Path(source_path).name
-    stem = Path(original).stem
-    suffix = Path(original).suffix.lower()
-    clean_stem = "".join(char if char not in '<>:"/\\|?*' else "_" for char in stem)
-    digest = hashlib.sha1(source_path.encode()).hexdigest()[:10]
-    return f"{clean_stem}_{digest}{suffix}"
-
-
-def convert_annotation(xml_bytes: bytes, class_ids: dict[str, int]) -> str:
-    root = ET.fromstring(xml_bytes)
-    width = float(root.findtext("size/width"))
-    height = float(root.findtext("size/height"))
-    if width <= 0 or height <= 0:
-        return ""
-    labels = []
-    for object_node in root.findall("object"):
-        class_name = object_node.findtext("name", "unknown").strip()
-        box = object_node.find("bndbox")
-        if box is None or class_name not in class_ids:
-            continue
-        xmin = float(box.findtext("xmin"))
-        ymin = float(box.findtext("ymin"))
-        xmax = float(box.findtext("xmax"))
-        ymax = float(box.findtext("ymax"))
-        center_x = ((xmin + xmax) / 2) / width
-        center_y = ((ymin + ymax) / 2) / height
-        box_width = (xmax - xmin) / width
-        box_height = (ymax - ymin) / height
-        labels.append(
-            f"{class_ids[class_name]} {center_x:.6f} {center_y:.6f} {box_width:.6f} {box_height:.6f}"
-        )
-    return "\n".join(labels) + ("\n" if labels else "")
+    suffix = Path(source_path).suffix.lower()
+    digest = hashlib.sha1(source_path.encode()).hexdigest()[:16]
+    return f"image_{digest}{suffix}"
 
 
 def main() -> None:
     if not (REPO / ".git").is_dir():
         raise FileNotFoundError(f"Clone PlantDoc first into {REPO}")
 
-    tree = git_tree()
-    xml_paths = {path for path in tree if path.startswith(("TRAIN/", "TEST/")) and path.lower().endswith(".xml")}
-    class_names = set()
-    xml_contents = {}
-    for xml_path in xml_paths:
-        content = read_blob(tree[xml_path])
-        xml_contents[xml_path] = content
-        root = ET.fromstring(content)
-        class_names.update(node.findtext("name", "unknown").strip() for node in root.findall("object"))
-
-    class_ids = {name: index for index, name in enumerate(sorted(class_names))}
     image_paths = [
-        path for path in tree
-        if path.startswith(("TRAIN/", "TEST/")) and Path(path).suffix.lower() in IMAGE_EXTENSIONS
+        path for path in git_tree()
+        if path.startswith(("train/", "test/"))
+        and path.split("/", 2)[1] in TARGET_CLASSES
+        and Path(path).suffix.lower() in IMAGE_EXTENSIONS
     ]
-    xml_by_stem = {Path(path).with_suffix("").as_posix(): path for path in xml_paths}
+    class_names = sorted({TARGET_CLASSES[path.split("/", 2)[1]] for path in image_paths})
+    class_ids = {name: index for index, name in enumerate(class_names)}
 
-    for split, source_prefix in (("train", "TRAIN/"), ("val", "TEST/")):
+    if not image_paths:
+        raise RuntimeError("No PlantDoc images were found in train/ or test/.")
+
+    for split in ("train", "val"):
+        for directory in (OUTPUT / "images" / split, OUTPUT / "labels" / split):
+            directory.mkdir(parents=True, exist_ok=True)
+            for file_path in directory.iterdir():
+                if file_path.is_file():
+                    file_path.unlink()
+
+    for split, source_prefix in (("train", "train/"), ("val", "test/")):
         image_output = OUTPUT / "images" / split
         label_output = OUTPUT / "labels" / split
-        image_output.mkdir(parents=True, exist_ok=True)
-        label_output.mkdir(parents=True, exist_ok=True)
         for image_path in (path for path in image_paths if path.startswith(source_prefix)):
+            class_name = TARGET_CLASSES[image_path.split("/", 2)[1]]
             filename = safe_name(image_path)
-            (image_output / filename).write_bytes(read_blob(tree[image_path]))
-            xml_path = xml_by_stem.get(Path(image_path).with_suffix("").as_posix())
-            annotation = convert_annotation(xml_contents[xml_path], class_ids) if xml_path else ""
-            (label_output / f"{Path(filename).stem}.txt").write_text(annotation, encoding="utf-8")
+            (image_output / filename).write_bytes(read_blob(blob_hash(image_path)))
+            (label_output / f"{Path(filename).stem}.txt").write_text(
+                f"{class_ids[class_name]} 0.5 0.5 1.0 1.0\n",
+                encoding="utf-8",
+            )
 
     config_lines = [
         f"path: {OUTPUT.resolve()}",

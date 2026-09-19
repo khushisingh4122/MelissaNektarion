@@ -1,7 +1,9 @@
 ﻿node_modules/
 dist/
+.venv/
 .env
 .env.local
+*.db
 
 # Local Python environment and development database
 apps/api/venv/

@@ -1,5 +1,5 @@
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect, text
 
 from src.database.base import Base
@@ -28,47 +28,77 @@ from src.api.pixhawk import router as pixhawk_router
 
 Base.metadata.create_all(bind=engine)
 
-if "phone" not in {column["name"] for column in inspect(engine).get_columns("users")}:
-    with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(30)"))
+try:
+	inspector = inspect(engine)
+	if "users" in inspector.get_table_names():
+		columns = {column["name"] for column in inspector.get_columns("users")}
+		if "phone" not in columns:
+			with engine.begin() as connection:
+				connection.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(30)"))
+except Exception as error:
+	print(f"Database migration warning: {error}")
 
-app = FastAPI()
 
-# CORS - allow React frontend to communicate with FastAPI
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://10.18.25.244:3000",
-    ],
-    allow_origin_regex=r"https?://(10\.18\.\d+\.\d+|172\.24\.\d+\.\d+):(3000|3001)",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+app = FastAPI(
+	title="MelissaNektarion API",
+	description="AI Smart Farming and Agricultural Drone API",
+	version="1.0.0",
 )
 
-app.include_router(pest_detection_router)
-app.include_router(farm_intelligence_router)
-app.include_router(pollination_router)
-app.include_router(ai_router)
-app.include_router(alerts_router)
-app.include_router(crop_monitoring_router)
-app.include_router(sensor_data_router)
-app.include_router(missions_router)
-app.include_router(auth_router)
-app.include_router(users_router)
-app.include_router(drones_router)
-app.include_router(pixhawk_router)
+app.add_middleware(
+	CORSMiddleware,
+	allow_origins=[
+		"http://localhost:3000",
+		"http://127.0.0.1:3000",
+		"http://localhost:3001",
+		"http://127.0.0.1:3001",
+	],
+	allow_origin_regex=(
+		r"https?://("
+		r"10\.\d+\.\d+\.\d+"
+		r"|172\.(?:1[6-9]|2\d|3[0-1])\.\d+\.\d+"
+		r"|192\.168\.\d+\.\d+"
+		r"|169\.254\.\d+\.\d+"
+		r"):3000"
+	),
+	allow_credentials=True,
+	allow_methods=["*"],
+	allow_headers=["*"],
+)
 
+for router in (
+	pest_detection_router,
+	farm_intelligence_router,
+	pollination_router,
+	ai_router,
+	alerts_router,
+	crop_monitoring_router,
+	sensor_data_router,
+	missions_router,
+	auth_router,
+	users_router,
+	drones_router,
+	pixhawk_router,
+):
+	app.include_router(router)
 
 
 @app.get("/")
 def root():
-    return {"message": "MelissaNektarion API is running"}
+	return {"message": "MelissaNektarion API is running", "status": "online", "version": "1.0.0"}
 
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+	return {"status": "healthy", "backend": "FastAPI", "project": "MelissaNektarion"}
+
+
+@app.get("/api/network")
+def network_info():
+	return {
+		"frontend": "http://10.66.199.69:3000",
+		"backend": "http://10.66.199.69:8000",
+		"docs": "http://10.66.199.69:8000/docs",
+		"status": "connected",
+	}
+

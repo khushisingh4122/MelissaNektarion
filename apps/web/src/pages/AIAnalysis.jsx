@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
-import { AlertCircle, BrainCircuit, CheckCircle2, FileImage, Leaf, Loader2, ScanSearch, ShieldCheck, Sparkles, Upload } from 'lucide-react';
+import { AlertCircle, BrainCircuit, CheckCircle2, FileImage, Leaf, Loader2, Sparkles, Upload } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { apiServerClient } from '../lib/apiServerClient.js';
@@ -25,8 +25,7 @@ export default function AIAnalysis() {
     setError('');
   };
 
-  const detections = result?.detections || (result?.disease ? [{ disease: result.disease, confidence: result.confidence, solution: result.solution }] : []);
-  const highestConfidence = detections.length ? Math.max(...detections.map((item) => Number(item.confidence) || 0)) : 0;
+  const detections = result?.detections || (result?.disease ? [{ disease: result.disease, category: result.category, confidence: result.confidence, solution: result.solution, prevention: result.prevention, precautions: result.precautions }] : []);
 
   const analyze = async () => {
     if (!file) return;
@@ -71,7 +70,7 @@ export default function AIAnalysis() {
           {[['01', 'Upload', 'Choose a clear field image'], ['02', 'Analyze', 'Run the trained vision model'], ['03', 'Act', 'Review findings and guidance']].map(([number, title, description], index) => <div key={number} className={`rounded-2xl border p-3 ${index === 0 ? 'border-[#b8d4a9] bg-[#e8f1e2]' : 'border-[#d8e3d2] bg-[#f5f7f1]'}`}><span className="text-[10px] font-bold tracking-[0.16em] text-[#718446]">{number}</span><p className="mt-1 text-sm font-semibold text-[#183d2d]">{title}</p><p className="mt-1 text-xs text-[#718446]">{description}</p></div>)}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid items-start gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <Card className="border border-[#cbd8c5] bg-[#f5f7f1] shadow-[0_12px_30px_rgba(24,61,45,0.06)]">
             <CardHeader><CardTitle className="flex items-center gap-2"><FileImage className="h-5 w-5 text-emerald-700" />Image workspace</CardTitle></CardHeader>
             <CardContent className="pt-0">
@@ -88,30 +87,21 @@ export default function AIAnalysis() {
             </CardContent>
           </Card>
 
-          <Card className="border border-[#cbd8c5] bg-[#f5f7f1] shadow-[0_12px_30px_rgba(24,61,45,0.06)]">
-            <CardHeader><CardTitle className="flex items-center gap-2"><ScanSearch className="h-5 w-5 text-[#557a45]" />Analysis lens</CardTitle></CardHeader>
-            <CardContent className="space-y-3 pt-0 text-sm text-[#55705c]">
-              <div className="flex gap-3 rounded-lg bg-[#e8f1e2] p-3"><ScanSearch className="h-5 w-5 shrink-0 text-emerald-700" /><span>Possible disease or pest class with model confidence.</span></div>
-              <div className="flex gap-3 rounded-lg bg-[#e8f1e2] p-3"><ShieldCheck className="h-5 w-5 shrink-0 text-emerald-700" /><span>A practical recommendation for inspection and treatment planning.</span></div>
-              <p className="pt-2 text-xs">Results are decision support, not a laboratory diagnosis. Confirm serious disease with an agronomist before applying chemicals.</p>
-            </CardContent>
-          </Card>
+          <div className="space-y-6 lg:sticky lg:top-4 lg:self-start">
+            {result && (
+              <Card className="border border-emerald-200 bg-emerald-50/60 shadow-[0_12px_30px_rgba(24,61,45,0.08)]">
+                <CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-700" />AI analysis result</CardTitle></CardHeader>
+                <CardContent>
+                  {result.status !== 'analyzed' && result.status !== 'analyzed_by_groq' && <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800"><strong>Model status:</strong> {result.message}</div>}
+                  {(result.status === 'analyzed' || result.status === 'analyzed_by_groq') && <div className="mb-4 grid gap-3 sm:grid-cols-2"><div className="rounded-lg bg-white/70 p-3"><p className="text-xs text-gray-500">Findings</p><p className="mt-1 text-2xl font-bold text-[#183d2d]">{detections.length}</p></div><div className="rounded-lg bg-white/70 p-3"><p className="text-xs text-gray-500">Model status</p><p className="mt-1 font-semibold text-emerald-700">Complete</p></div></div>}
+                  {detections.length > 0 && <div className="space-y-3">{detections.map((detection, index) => <div key={`${detection.disease}-${index}`} className="rounded-lg border border-emerald-200 bg-white/70 p-4"><div><p className="font-semibold text-[#183d2d]">{detection.disease}</p>{detection.category && <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#718446]">{detection.category}</p>}</div><p className="mt-3 text-sm text-[#55705c]"><strong>Suggested solution:</strong> {detection.solution}</p>{detection.prevention && <p className="mt-2 text-sm text-[#55705c]"><strong>Prevention:</strong> {detection.prevention}</p>}{detection.precautions && <p className="mt-2 text-sm text-amber-900"><strong>Precautions:</strong> {detection.precautions}</p>}</div>)}</div>}
+                  {result.ai_advice && <div className="mt-4 rounded-xl border border-[#b8d4a9] bg-[#e8f1e2] p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-[#183d2d]">AI explanation and action plan</p><span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#718446]">{result.advice_source}</span></div><p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#55705c]">{result.ai_advice}</p></div>}
+                  {result.status === 'analyzed' && !detections.length && <p className="text-sm text-[#55705c]">No disease or pest detections were returned for this image.</p>}
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
-
-        {result && (
-          <Card className="border border-emerald-200 bg-emerald-50/60 shadow-[0_12px_30px_rgba(24,61,45,0.08)]">
-            <CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-700" />AI analysis result</CardTitle></CardHeader>
-            <CardContent>
-              {result.status !== 'analyzed' && <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800"><strong>Model status:</strong> {result.message}</div>}
-              {result.status === 'analyzed' && <div className="mb-4 grid gap-3 sm:grid-cols-3"><div className="rounded-lg bg-white/70 p-3"><p className="text-xs text-gray-500">Findings</p><p className="mt-1 text-2xl font-bold text-[#183d2d]">{detections.length}</p></div><div className="rounded-lg bg-white/70 p-3"><p className="text-xs text-gray-500">Highest confidence</p><p className="mt-1 text-2xl font-bold text-[#183d2d]">{highestConfidence}%</p></div><div className="rounded-lg bg-white/70 p-3"><p className="text-xs text-gray-500">Model status</p><p className="mt-1 font-semibold text-emerald-700">Complete</p></div></div>}
-              {detections.length > 0 && <div className="space-y-3">{detections.map((detection, index) => <div key={`${detection.disease}-${index}`} className="rounded-lg border border-emerald-200 bg-white/70 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold text-[#183d2d]">{detection.disease}</p><span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">{detection.confidence}% confidence</span></div><p className="mt-2 text-sm text-[#55705c]"><strong>Suggested next step:</strong> {detection.solution}</p></div>)}</div>}
-              {result.ai_advice && <div className="mt-4 rounded-xl border border-[#b8d4a9] bg-[#e8f1e2] p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-[#183d2d]">AI explanation and action plan</p><span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#718446]">{result.advice_source}</span></div><p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#55705c]">{result.ai_advice}</p></div>}
-              {result.prevention && <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900"><strong>Prevention:</strong> {result.prevention}</div>}
-              {result.precautions && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>Precautions:</strong> {result.precautions}</div>}
-              {result.status === 'analyzed' && !detections.length && <p className="text-sm text-[#55705c]">No disease or pest detections were returned for this image.</p>}
-            </CardContent>
-          </Card>
-        )}
       </div>
     </DashboardLayout>
   );

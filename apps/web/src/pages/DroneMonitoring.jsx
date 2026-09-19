@@ -14,7 +14,7 @@ const DroneMonitoring = () => {
   const simulatedData = useWebSocketSimulator(droneData);
   const [telemetry, setTelemetry] = useState(simulatedData);
   const [hardwareStatus, setHardwareStatus] = useState({ connected: false });
-  const [connectionString, setConnectionString] = useState('COM3');
+  const [connectionString, setConnectionString] = useState('');
   const [hardwareError, setHardwareError] = useState('');
 
   const refreshHardware = async () => {
@@ -30,7 +30,7 @@ const DroneMonitoring = () => {
       setTelemetry({
         battery: live.battery?.battery_remaining,
         altitude: live.altitude,
-        speed: telemetry?.speed ?? 0,
+        speed: live.speed?.ground_speed ?? 0,
         location: `${live.gps.latitude.toFixed(5)}, ${live.gps.longitude.toFixed(5)}`,
         gps: 'Locked',
         camera: 'Unknown',
@@ -104,7 +104,7 @@ const DroneMonitoring = () => {
                 <Button type="button" onClick={connectHardware}><Plug className="mr-2 h-4 w-4" />Connect Pixhawk</Button>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">{hardwareStatus.connected ? 'Live Pixhawk telemetry is active.' : 'Simulation telemetry is shown until a Pixhawk heartbeat is received.'}</p>
+            <p className="text-xs text-muted-foreground">{hardwareStatus.connected ? 'Live Pixhawk telemetry is active.' : 'Enter a serial port such as COM3 or /dev/ttyACM0, then connect.'}</p>
             {hardwareError && <p className="text-sm text-red-600">{hardwareError}</p>}
           </CardContent>
         </Card>
