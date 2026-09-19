@@ -1,10 +1,15 @@
 import os
+import base64
+import mimetypes
 from pathlib import Path
 
 
 def analyze_image(image_path: Path) -> dict:
     model_path = os.getenv("CROP_DISEASE_MODEL_PATH")
     if not model_path:
+        vision = groq_vision_analysis(image_path)
+        if vision:
+            return {"status": "analyzed_by_groq", **vision}
         return {
             "status": "model_not_configured",
             "message": "Configure CROP_DISEASE_MODEL_PATH with a trained crop disease model.",
@@ -56,6 +61,10 @@ def analyze_image(image_path: Path) -> dict:
                 "solution": solution_for(name),
             })
     fallback = detections[0]["solution"] if detections else "No clear disease or pest was detected. Capture a closer, well-lit image and monitor the crop."
+    if not detections:
+        vision = groq_vision_analysis(image_path)
+        if vision:
+            return {"status": "analyzed_by_groq", **vision}
     return {
         "status": "analyzed",
         "detections": detections,
@@ -125,3 +134,50 @@ def llm_guidance(findings: list[dict], fallback: str) -> dict:
             "ai_advice": fallback,
             "advice_source": "local guidance",
         }
+
+
+def groq_vision_analysis(image_path: Path) -> dict | None:
+    """Use Groq vision as a fallback when the trained detector finds nothing."""
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        return None
+
+    try:
+        from groq import Groq
+
+        mime_type = mimetypes.guess_type(image_path.name)[0] or "image/jpeg"
+        image_data = base64.b64encode(image_path.read_bytes()).decode("ascii")
+        client = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model=os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"),
+            temperature=0.1,
+            max_tokens=350,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Inspect this crop image. Identify the most likely crop, disease, pest, or healthy condition. "
+                                "Return concise sections exactly named: Finding, Confidence, Prevention, Precautions, Next step. "
+                                "If the image is unclear, say Uncertain and explain what photo is needed. Do not give pesticide dosage."
+                            ),
+                        },
+                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_data}"}},
+                    ],
+                }
+            ],
+        )
+        advice = response.choices[0].message.content.strip()
+        return {
+            "disease": "Groq vision assessment",
+            "confidence": None,
+            "solution": advice,
+            "ai_advice": advice,
+            "prevention": "Follow the prevention guidance in the Groq assessment and verify with a local agronomist.",
+            "precautions": "Do not apply chemicals based only on an image. Isolate visibly affected plants and confirm the diagnosis.",
+            "advice_source": "Groq vision fallback",
+        }
+    except Exception:
+        return None
