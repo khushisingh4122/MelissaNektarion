@@ -2,7 +2,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 DATASET = ROOT / "datasets" / "apple_crop_health"
-DATA_CONFIG = ROOT / "crop_disease.yaml"
+DATA_CONFIG = DATASET / "data.yaml"
 
 
 def validate_dataset() -> None:
@@ -31,7 +31,7 @@ def main() -> None:
         batch=-1,
         patience=20,
         project=str(ROOT / "runs"),
-        name="crop_disease_pest",
+        name="multi_crop_disease_pest",
         pretrained=True,
     )
 
