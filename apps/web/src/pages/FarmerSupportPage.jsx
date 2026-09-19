@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, BatteryCharging, Bug, ChevronDown, Leaf, Mail, MessageCircle, Paperclip, Phone, Plane, Radio, Send, Sprout } from 'lucide-react';
+import { AlertTriangle, ArrowRight, BatteryCharging, Bug, ChevronDown, FlaskConical, Leaf, Mail, MapPinned, MessageCircle, Paperclip, Phone, PhoneCall, Plane, Radio, Send, Sprout, Stethoscope } from 'lucide-react';
 import { toast } from 'sonner';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import { Card, CardContent } from '../components/ui/card';
@@ -11,6 +11,7 @@ import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useTranslation } from '../i18n/useTranslation.jsx';
+import { supportContacts } from '../data/sampleSupportContacts.js';
 
 const categories = [
   ['Drone Issues', 'Connection, battery, startup, flight problems', Plane, 'bg-blue-50 border-blue-100 text-blue-700'],
@@ -26,6 +27,12 @@ const faqs = [
   ['How does pest detection work?', Bug, 'Upload a crop image in Pest Detection to receive the detected pest and recommended action.'],
   ['How can I view my sensor data?', Radio, 'Open Sensor Data to see the latest readings from your connected farm sensors.'],
   ['What should I do if the drone battery is low?', BatteryCharging, 'Land safely, replace or charge the battery, and only restart a mission when it is ready.'],
+];
+
+const helpDeskGroups = [
+  { title: 'Disease specialists', category: 'Pest Control Experts', icon: Stethoscope, tone: 'bg-rose-50 border-rose-100 text-rose-700' },
+  { title: 'Fertilizer suppliers', category: 'Fertilizer Suppliers', icon: FlaskConical, tone: 'bg-amber-50 border-amber-100 text-amber-700' },
+  { title: 'Agriculture officers', category: 'Local Agriculture Officers', icon: MapPinned, tone: 'bg-sky-50 border-sky-100 text-sky-700' },
 ];
 
 export default function FarmerSupportPage() {
@@ -64,6 +71,8 @@ export default function FarmerSupportPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{categories.map(([title, text, Icon, colors]) => <button type="button" key={title} className={`rounded-lg border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${colors}`} onClick={() => setQuestion(title)}><Icon className="mb-3 h-6 w-6" /><h3 className="text-sm font-bold text-slate-800">{title}</h3><p className="mt-1 text-xs text-slate-600">{text}</p><ArrowRight className="ml-auto mt-3 h-4 w-4" /></button>)}</div>
             <Card className="border-slate-200"><CardContent className="p-4"><h2 className="text-sm font-bold text-slate-800">Frequently Asked Questions</h2><p className="mb-3 text-xs text-slate-500">Find answers to common questions</p><div className="space-y-2">{faqs.map(([text, Icon, answer], index) => <div className="overflow-hidden rounded-lg border border-slate-200" key={text}><button type="button" className="flex w-full items-center gap-3 p-3 text-left text-xs font-medium text-slate-700 hover:bg-slate-50" onClick={() => setOpenFaq(openFaq === index ? null : index)}><Icon className="h-4 w-4 text-emerald-700" /><span className="flex-1">{text}</span><ChevronDown className={`h-4 w-4 transition-transform ${openFaq === index ? 'rotate-180' : ''}`} /></button>{openFaq === index && <p className="px-10 pb-3 text-xs text-slate-500">{answer}</p>}</div>)}</div></CardContent></Card>
             <div className="flex items-center justify-between rounded-xl bg-emerald-50 p-4"><div className="flex items-center gap-3"><MessageCircle className="h-6 w-6 text-emerald-700" /><div><p className="text-sm font-semibold text-emerald-950">Need more help?</p><p className="text-xs text-emerald-900/60">Ask our AI assistant for personalized support.</p></div></div><Button asChild size="sm" className="bg-emerald-700 hover:bg-emerald-800"><Link to="/ai-chatbot">Chat with AI <ArrowRight className="ml-1 h-3 w-3" /></Link></Button></div>
+
+            <Card className="border-emerald-100 bg-[#f5f7f1]"><CardContent className="p-4"><div className="mb-4"><h2 className="text-sm font-bold text-slate-800">Agri Help Desk</h2><p className="text-xs text-slate-500">Find fertilizer, disease, and field specialists.</p></div><div className="grid gap-3 md:grid-cols-3">{helpDeskGroups.map(({ title, category, icon: Icon, tone }) => { const contact = supportContacts.find((item) => item.category === category); return <div key={category} className={`rounded-xl border p-4 ${tone}`}><Icon className="h-5 w-5" /><p className="mt-3 text-sm font-bold text-slate-800">{title}</p><p className="mt-1 text-xs text-slate-600">{contact?.specialization}</p><p className="mt-3 text-xs font-semibold text-slate-700">{contact?.name}</p><p className="text-[11px] text-slate-500">{contact?.location}</p>{contact && <a href={`tel:${contact.phone}`} className="mt-3 flex items-center gap-1 text-xs font-semibold text-emerald-700"><PhoneCall className="h-3 w-3" />{contact.phone}</a>}</div>; })}</div></CardContent></Card>
           </main>
 
           <aside className="space-y-5">

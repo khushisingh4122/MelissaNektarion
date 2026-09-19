@@ -160,6 +160,33 @@ export const weatherData = {
       eligibility: ['Farmers interested in organic farming', 'Minimum 50 farmers per cluster', 'Certified organic farmers'],
       benefits: ['₹50,000 per hectare over 3 years', 'Organic certification support', 'Market linkage assistance'],
       link: 'https://pgsindia-ncof.gov.in'
+    },
+    {
+      id: 7,
+      name: 'PM-KUSUM Solar Irrigation Support',
+      type: 'Irrigation & Energy',
+      description: 'Support for solar pumps and decentralized renewable energy for farm irrigation.',
+      eligibility: ['Farmers with agricultural land', 'Farmer producer organizations', 'Water user associations'],
+      benefits: ['Solar pump subsidy', 'Lower irrigation electricity cost', 'Reliable daytime irrigation'],
+      link: 'https://pmkusum.mnre.gov.in'
+    },
+    {
+      id: 8,
+      name: 'Micro Irrigation Fund',
+      type: 'Water Conservation',
+      description: 'Financial support for efficient drip and sprinkler irrigation systems that conserve water.',
+      eligibility: ['Small and marginal farmers', 'Farmer groups and cooperatives', 'State-supported irrigation projects'],
+      benefits: ['Drip irrigation support', 'Sprinkler system assistance', 'Improved water-use efficiency'],
+      link: 'https://pmksy.gov.in'
+    },
+    {
+      id: 9,
+      name: 'Agriculture Infrastructure Fund',
+      type: 'Farm Infrastructure',
+      description: 'Credit support for storage, grading, cold-chain, and post-harvest farm infrastructure.',
+      eligibility: ['Farmers and farmer producer organizations', 'Agri-entrepreneurs', 'Primary agricultural cooperatives'],
+      benefits: ['Interest support on eligible loans', 'Warehouse and cold storage access', 'Post-harvest loss reduction'],
+      link: 'https://agriinfra.dac.gov.in'
     }
   ];
   
