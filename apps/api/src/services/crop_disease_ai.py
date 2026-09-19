@@ -37,11 +37,13 @@ def analyze_image(image_path: Path) -> dict:
         class_id = int(result.probs.top1)
         confidence = float(result.probs.top1conf)
         disease = result.names[class_id]
+        local_solution = solution_for(disease)
         return {
             "status": "analyzed",
             "disease": disease,
             "confidence": round(confidence * 100, 1),
-            "solution": solution_for(disease),
+            "solution": local_solution,
+            **llm_guidance([{"disease": disease, "confidence": round(confidence * 100, 1)}], local_solution),
         }
 
     detections = []
@@ -53,7 +55,15 @@ def analyze_image(image_path: Path) -> dict:
                 "confidence": round(float(confidence) * 100, 1),
                 "solution": solution_for(name),
             })
-    return {"status": "analyzed", "detections": detections}
+    fallback = detections[0]["solution"] if detections else "No clear disease or pest was detected. Capture a closer, well-lit image and monitor the crop."
+    return {
+        "status": "analyzed",
+        "detections": detections,
+        **llm_guidance(
+            [{"disease": item["disease"], "confidence": item["confidence"]} for item in detections],
+            fallback,
+        ),
+    }
 
 
 def analyze_frame(image_path: Path) -> dict:
@@ -71,3 +81,47 @@ def solution_for(disease: str) -> str:
         disease.lower(),
         "Isolate affected plants and consult a local agronomist before applying treatment.",
     )
+
+
+def llm_guidance(findings: list[dict], fallback: str) -> dict:
+    """Ask Groq for farmer-friendly guidance without exposing the uploaded image."""
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        return {
+            "ai_advice": fallback,
+            "advice_source": "local guidance",
+        }
+
+    try:
+        from groq import Groq
+
+        client = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model=os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
+            temperature=0.2,
+            max_tokens=220,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a careful agricultural support assistant. Explain computer-vision findings "
+                        "in plain language. Give 2 or 3 practical next steps, avoid exact pesticide dosage, "
+                        "and tell the farmer to confirm serious disease with a local agronomist."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Model findings: {findings}. Provide a short explanation and safe next steps.",
+                },
+            ],
+        )
+        advice = response.choices[0].message.content.strip()
+        return {
+            "ai_advice": advice,
+            "advice_source": "Groq agricultural assistant",
+        }
+    except Exception:
+        return {
+            "ai_advice": fallback,
+            "advice_source": "local guidance",
+        }
