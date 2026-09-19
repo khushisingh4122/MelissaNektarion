@@ -10,7 +10,7 @@ import Signup from './pages/Signup.jsx';
 
 import DashboardOverview from './pages/DashboardOverview.jsx';
 import FarmIntelligence from './pages/FarmIntelligence.jsx';
-import SensorData from './pages/SensorData.jsx';
+import AIAnalysis from './pages/AIAnalysis.jsx';
 import FarmMap from './pages/FarmMap.jsx';
 import AIChatbot from './pages/AIChatbot.jsx';
 import MissionPlanning from './pages/MissionPlanning.jsx';
@@ -46,7 +46,7 @@ function App() {
             />
 
             <Route path="/farm-intelligence" element={<FarmIntelligence />} />
-            <Route path="/sensor-data" element={<SensorData />} />
+            <Route path="/ai-analysis" element={<AIAnalysis />} />
             <Route path="/farm-map" element={<FarmMap />} />
             <Route path="/ai-chatbot" element={<AIChatbot />} />
             <Route path="/mission-planning" element={<MissionPlanning />} />

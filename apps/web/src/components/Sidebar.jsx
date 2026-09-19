@@ -29,7 +29,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/drone-monitoring', label: t('nav.droneMonitoring'), icon: Plane },
     { path: '/mission-planning', label: t('nav.missionPlanning'), icon: Route },
     { path: '/pollination', label: t('nav.pollination'), icon: Bug },
-    { path: '/crop-health', label: 'AI Insights', icon: Leaf },
+    { path: '/ai-analysis', label: 'AI Insights', icon: Leaf },
     { path: '/alerts', label: t('nav.alerts'), icon: Bell },
   ];
 
