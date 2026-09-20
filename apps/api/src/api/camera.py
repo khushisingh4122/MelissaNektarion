@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
-from src.hardware.camera import LATEST_IMAGE, capture_image
+from src.hardware.camera import LATEST_IMAGE, capture_image, start_camera, stream_frames
 from src.services.crop_disease_ai import analyze_image
 
 
@@ -46,3 +46,12 @@ def capture_and_analyze():
         raise HTTPException(status_code=503, detail=f"Camera analysis failed: {error}") from error
 
     return {"image_url": "/camera/latest", "filename": image_path.name, **result}
+
+
+@router.get("/stream")
+def camera_stream():
+    try:
+        start_camera()
+    except Exception as error:
+        raise HTTPException(status_code=503, detail=f"Camera stream failed: {error}") from error
+    return StreamingResponse(stream_frames(), media_type="multipart/x-mixed-replace; boundary=frame")

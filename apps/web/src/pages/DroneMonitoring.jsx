@@ -9,6 +9,7 @@ import { useTranslation } from '../i18n/useTranslation.jsx';
 import { apiServerClient } from '../lib/apiServerClient.js';
 import { Battery, Camera, Gauge, MapPin, Navigation, Plane, Radio, ShieldCheck, Timer, Plug, Unplug } from 'lucide-react';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
 const DroneMonitoring = () => {
   const { t } = useTranslation();
   const simulatedData = useWebSocketSimulator(droneData);
@@ -19,8 +20,9 @@ const DroneMonitoring = () => {
   const [cameraImage, setCameraImage] = useState('');
   const [cameraBusy, setCameraBusy] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [liveOn, setLiveOn] = useState(false);
 
-  const cameraUrl = () => `${window.location.protocol}//${window.location.hostname}:8000/camera/latest?ts=${Date.now()}`;
+  const cameraUrl = () => `${API_BASE}/camera/latest?ts=${Date.now()}`;
 
   const captureCameraImage = async () => {
     setCameraBusy(true);
@@ -158,9 +160,9 @@ const DroneMonitoring = () => {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[[Radio, 'GPS', telemetry?.gps || 'Locked'], [Battery, 'Battery', `${telemetry?.battery ?? 72}%`], [Camera, 'Camera', telemetry?.camera || 'Online'], [ShieldCheck, 'Mission safety', 'Clear']].map(([Icon, label, value]) => <Card key={label} className="border border-[#cbd8c5] bg-[#f5f7f1]"><CardContent className="flex items-center gap-3 p-4"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#dcefd5] text-[#557a45]"><Icon className="h-5 w-5" /></div><div><p className="text-[10px] uppercase tracking-[0.16em] text-[#718446]">{label}</p><p className="mt-1 text-sm font-bold text-[#183d2d]">{value}</p></div></CardContent></Card>)}</div>
 
         <Card className="border border-[#cbd8c5] bg-[#f5f7f1]">
-          <CardHeader className="flex flex-row items-center justify-between gap-3"><div><CardTitle className="text-lg text-[#183d2d]">Raspberry Pi camera</CardTitle><p className="mt-1 text-xs text-[#718446]">Capture a field image and send it through crop disease and pest analysis.</p></div><Button type="button" onClick={captureCameraImage} disabled={cameraBusy}>{cameraBusy ? 'Capturing...' : 'Capture and analyze'}</Button></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-3"><div><CardTitle className="text-lg text-[#183d2d]">Raspberry Pi camera</CardTitle><p className="mt-1 text-xs text-[#718446]">Capture a field image and send it through crop disease and pest analysis.</p></div><div className="flex gap-2"><Button type="button" variant="outline" onClick={() => setLiveOn((on) => !on)}>{liveOn ? 'Stop live view' : 'Start live view'}</Button><Button type="button" onClick={captureCameraImage} disabled={cameraBusy}>{cameraBusy ? 'Capturing...' : 'Capture and analyze'}</Button></div></CardHeader>
           <CardContent>
-            {cameraImage ? <img src={cameraImage} alt="Latest Raspberry Pi camera capture" className="aspect-video w-full rounded-2xl border border-[#cbd8c5] object-cover" /> : <div className="flex aspect-video items-center justify-center rounded-2xl border-2 border-dashed border-[#b8cbae] bg-[#eef4e9] text-sm text-[#718446]">No Raspberry Pi capture yet</div>}
+            {liveOn ? <img src={`${API_BASE}/camera/stream`} alt="Live camera stream" className="aspect-video w-full rounded-2xl border border-[#cbd8c5] object-cover" /> : cameraImage ? <img src={cameraImage} alt="Latest Raspberry Pi camera capture" className="aspect-video w-full rounded-2xl border border-[#cbd8c5] object-cover" /> : <div className="flex aspect-video items-center justify-center rounded-2xl border-2 border-dashed border-[#b8cbae] bg-[#eef4e9] text-sm text-[#718446]">No Raspberry Pi capture yet</div>}
             {cameraError && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{cameraError}</p>}
           </CardContent>
         </Card>
