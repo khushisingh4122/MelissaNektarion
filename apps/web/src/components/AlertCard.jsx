@@ -5,6 +5,16 @@ import { Button } from '../components/ui/button';
 import { AlertTriangle, Bug, Droplet, Cloud, Plane, X } from 'lucide-react';
 
 const AlertCard = ({ alert, onMarkAsRead, onDismiss }) => {
+  const getRecommendedAction = () => {
+    switch (alert.type) {
+      case 'pest': return 'Inspect the affected rows and review the latest camera image.';
+      case 'disease': return 'Capture a close-up image and arrange an agronomist review.';
+      case 'water': return 'Check irrigation and confirm soil moisture before the next mission.';
+      case 'weather': return 'Pause pollination or spraying until the weather window is safe.';
+      case 'drone': return 'Return the drone to base and replace or recharge the battery.';
+      default: return 'Review this alert and confirm the next field action.';
+    }
+  };
   const getIcon = () => {
     switch (alert.type) {
       case 'pest': return Bug;
@@ -56,6 +66,10 @@ const AlertCard = ({ alert, onMarkAsRead, onDismiss }) => {
               </Button>
             </div>
             <p className="text-sm text-muted-foreground mb-3 leading-relaxed">{alert.description}</p>
+            <div className="mb-3 rounded-lg border border-border/70 bg-muted/40 px-3 py-2 text-xs">
+              <span className="font-semibold">Recommended action: </span>
+              {alert.action || getRecommendedAction()}
+            </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <Badge variant={getSeverityBadgeVariant()} className="text-xs">

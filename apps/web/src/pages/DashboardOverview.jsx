@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -9,6 +9,8 @@ import {
   BellRing,
   Bug,
   CloudSun,
+  Camera,
+  CloudRain,
   Droplets,
   Flower2,
   Gauge,
@@ -24,11 +26,16 @@ import {
   Thermometer,
   TrendingUp,
   UserRound,
+  Wind,
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import { Card, CardContent } from '../components/ui/card';
-import { pollinationData } from '../data/sampleData.js';
+import { fieldZones, pollinationData } from '../data/sampleData.js';
+import { fetchSevenDayForecast } from '../lib/fieldData.js';
+import { apiServerClient } from '../lib/apiServerClient.js';
 import { useTranslation } from '../i18n/useTranslation.jsx';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
 
 const kpis = [
   ['Total Drones', '2', '1 Active • 1 Idle', Plane, 'text-emerald-700 bg-emerald-50'],
@@ -62,7 +69,55 @@ const quickActions = [
 export default function DashboardOverview() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [cameraUnavailable, setCameraUnavailable] = useState(false);
   const currentDate = new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
+  const [selectedFieldId, setSelectedFieldId] = useState('north');
+  const [forecast, setForecast] = useState([]);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [weatherError, setWeatherError] = useState('');
+  const [pollinationProgress, setPollinationProgress] = useState(null);
+  const [droneTelemetry, setDroneTelemetry] = useState(null);
+  const [pollenPaused, setPollenPaused] = useState(() => localStorage.getItem('melissa_pollen_paused') === 'true');
+  const selectedField = fieldZones.find((field) => field.id === selectedFieldId) || fieldZones[0];
+
+  useEffect(() => {
+    let active = true;
+    const loadLiveOperations = async () => {
+      const [pollinationResponse, telemetryResponse] = await Promise.all([
+        apiServerClient.fetch('/pollination/mission/1'),
+        apiServerClient.fetch('/drones/1/telemetry'),
+      ]);
+      if (!active) return;
+      if (pollinationResponse.ok) setPollinationProgress(await pollinationResponse.json());
+      if (telemetryResponse.ok) setDroneTelemetry(await telemetryResponse.json());
+    };
+    loadLiveOperations().catch(() => undefined);
+    const interval = window.setInterval(() => { loadLiveOperations().catch(() => undefined); }, 5000);
+    const syncPollenPause = () => setPollenPaused(localStorage.getItem('melissa_pollen_paused') === 'true');
+    window.addEventListener('storage', syncPollenPause);
+    return () => { active = false; window.clearInterval(interval); window.removeEventListener('storage', syncPollenPause); };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setWeatherLoading(true);
+    setWeatherError('');
+    fetchSevenDayForecast(selectedField)
+      .then((value) => { if (active) setForecast(value); })
+      .catch((error) => { if (active) setWeatherError(error.message); })
+      .finally(() => { if (active) setWeatherLoading(false); });
+    return () => { active = false; };
+  }, [selectedField]);
+
+  const todayForecast = forecast[0];
+  const pollinationReady = todayForecast && todayForecast.wind <= 15 && todayForecast.rain < 35;
+  const missionProgress = pollinationProgress?.progress ?? 0;
+  const coveredAcres = pollinationProgress?.covered_acres ?? 0;
+  const totalAcres = pollinationProgress?.total_acres ?? 10;
+  const battery = droneTelemetry?.battery?.battery_remaining;
+  const altitude = droneTelemetry?.altitude;
+  const speed = droneTelemetry?.speed?.ground_speed;
+  const pollenActive = Boolean(pollinationProgress?.pollen_active) && !pollenPaused;
 
   return (
     <DashboardLayout>
@@ -130,10 +185,26 @@ export default function DashboardOverview() {
                 </div>
                 <span className="rounded-full bg-[#dcefd5] px-3 py-1 text-[10px] font-semibold text-[#557a45]">Drone A1 • In progress</span>
               </div>
-              <div className="relative h-[320px] overflow-hidden rounded-[18px] border border-[#cbd8c5] bg-[linear-gradient(180deg,_rgba(25,87,50,0.08),_rgba(25,87,50,0.18)),url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1200&q=85')] bg-cover bg-center sm:h-[360px]">
-                <div className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#1f5d3d] text-white shadow-lg"><Plane className="h-5 w-5" /></div>
-                <div className="absolute right-[22%] top-[28%] text-red-500"><AlertTriangle className="h-6 w-6 fill-current" /></div>
-                <div className="absolute bottom-3 left-3 rounded-full bg-[#f5f7f1] px-3 py-1.5 text-[10px] font-medium text-[#355340] shadow-sm">Drone active • Mission area • Alert</div>
+              <div className="relative h-[320px] overflow-hidden rounded-[18px] border border-[#cbd8c5] bg-[#dce8d4] sm:h-[360px]">
+                {!cameraUnavailable ? (
+                  <img
+                    src={`${API_BASE}/camera/stream`}
+                    alt="Live Raspberry Pi farm camera"
+                    className="h-full w-full object-cover"
+                    onError={() => setCameraUnavailable(true)}
+                  />
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-[#55705c]">
+                    <Camera className="h-8 w-8 text-[#718446]" />
+                    <p className="text-sm font-semibold text-[#183d2d]">Farm camera is offline</p>
+                    <p className="text-xs">Connect the Raspberry Pi camera and start the backend to view live footage.</p>
+                  </div>
+                )}
+                <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/65 px-3 py-1.5 text-[10px] font-semibold text-white">
+                  <span className={`h-2 w-2 rounded-full ${cameraUnavailable ? 'bg-red-400' : 'bg-emerald-400'}`} />
+                  {cameraUnavailable ? 'Camera offline' : 'Live farm footage'}
+                </div>
+                <button type="button" onClick={() => navigate('/drone-monitoring')} className="absolute bottom-3 right-3 rounded-xl bg-[#f5f7f1] px-3 py-2 text-[10px] font-semibold text-[#355340] shadow-sm">Open full monitoring</button>
               </div>
             </CardContent>
           </Card>
@@ -163,18 +234,18 @@ export default function DashboardOverview() {
                   <p className="text-[10px] uppercase tracking-[0.18em] text-[#718446]">Current mission</p>
                   <h2 className="mt-1 text-lg font-bold text-[#183d2d]">Apple Orchard Pollination</h2>
                 </div>
-                <span className="rounded-full bg-[#dcefd5] px-2.5 py-1 text-[10px] font-semibold text-[#557a45]">In progress</span>
+                  <span className="rounded-full bg-[#dcefd5] px-2.5 py-1 text-[10px] font-semibold text-[#557a45]">{pollinationProgress?.status || 'Connecting'}</span>
               </div>
-              <p className="text-xs text-[#55705c]">Field 2 • Automated pollination route</p>
+              <p className="text-xs text-[#55705c]">{selectedField.name} • Automated pollination route</p>
               <div className="mt-5 flex items-center gap-3">
-                <div className="h-2 flex-1 rounded-full bg-[#dce8d4]"><div className="h-2 w-[65%] rounded-full bg-[#4f8a5c]" /></div>
-                <span className="text-xs font-semibold text-[#557a45]">65%</span>
+                <div className="h-2 flex-1 rounded-full bg-[#dce8d4]"><div className="h-2 rounded-full bg-[#4f8a5c]" style={{ width: `${missionProgress}%` }} /></div>
+                <span className="text-xs font-semibold text-[#557a45]">{missionProgress}%</span>
               </div>
               <div className="mt-5 grid grid-cols-3 gap-2">
                 {[
-                  ['6.8 / 10', 'Acres covered'],
-                  ['Dispensing', 'Pollen mechanism'],
-                  ['72%', 'Battery'],
+                  [`${coveredAcres} / ${totalAcres}`, 'Acres covered'],
+                  [pollenActive ? 'Dispensing' : pollenPaused ? 'Paused' : 'Standby', 'Pollen mechanism'],
+                  [battery == null ? '—' : `${battery}%`, 'Battery'],
                 ].map(([value, label]) => (
                   <div key={label} className="rounded-xl border border-[#d2ddc8] bg-[#eef4e9] p-3">
                     <p className="text-sm font-bold text-[#183d2d]">{value}</p>
@@ -196,14 +267,35 @@ export default function DashboardOverview() {
                 <span className="rounded-full bg-[#dcefd5] px-2.5 py-1 text-[10px] font-semibold text-[#557a45]">Active</span>
               </div>
               <div className="space-y-3 text-xs text-[#55705c]">
-                <div className="flex items-center justify-between"><span className="flex items-center gap-2"><BatteryCharging className="h-4 w-4 text-[#557a45]" /> Battery</span><strong>72%</strong></div>
-                <div className="flex items-center justify-between"><span className="flex items-center gap-2"><Plane className="h-4 w-4 text-[#557a45]" /> Altitude</span><strong>12 m</strong></div>
-                <div className="flex items-center justify-between"><span className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-[#557a45]" /> Speed</span><strong>5.2 m/s</strong></div>
-                <div className="flex items-center justify-between"><span className="flex items-center gap-2"><Sprout className="h-4 w-4 text-[#557a45]" /> Pollen</span><strong className="text-[#557a45]">ON</strong></div>
+                <div className="flex items-center justify-between"><span className="flex items-center gap-2"><BatteryCharging className="h-4 w-4 text-[#557a45]" /> Battery</span><strong>{battery == null ? '—' : `${battery}%`}</strong></div>
+                <div className="flex items-center justify-between"><span className="flex items-center gap-2"><Plane className="h-4 w-4 text-[#557a45]" /> Altitude</span><strong>{altitude == null ? '—' : `${altitude} m`}</strong></div>
+                <div className="flex items-center justify-between"><span className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-[#557a45]" /> Speed</span><strong>{speed == null ? '—' : `${speed} m/s`}</strong></div>
+                <div className="flex items-center justify-between"><span className="flex items-center gap-2"><Sprout className="h-4 w-4 text-[#557a45]" /> Pollen</span><strong className="text-[#557a45]">{pollenActive ? 'ON' : pollenPaused ? 'PAUSED' : 'STANDBY'}</strong></div>
               </div>
             </CardContent>
           </Card>
         </div>
+
+        <Card className="border border-[#cbd8c5] bg-[#f5f7f1] shadow-[0_14px_32px_rgba(17,71,35,0.07)]">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[#718446]">Pollination weather window</p>
+                <h2 className="mt-1 text-lg font-bold text-[#183d2d]">{weatherLoading ? 'Loading field forecast...' : pollinationReady ? 'Good conditions for pollination' : 'Wait for a safer weather window'}</h2>
+                <p className="mt-1 text-xs text-[#55705c]">{selectedField.name} • live seven-day forecast</p>
+              </div>
+              <span className={`rounded-full px-3 py-2 text-xs font-semibold ${pollinationReady ? 'bg-[#dcefd5] text-[#557a45]' : 'bg-[#f5ecd8] text-[#9a7130]'}`}>
+                {pollinationReady ? 'Recommended' : 'Not recommended'}
+              </span>
+            </div>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <select value={selectedFieldId} onChange={(event) => setSelectedFieldId(event.target.value)} className="rounded-xl border border-[#cbd8c5] bg-white px-3 py-2 text-xs font-semibold text-[#355340]">{fieldZones.map((field) => <option key={field.id} value={field.id}>{field.name}</option>)}</select>
+              <div className="flex items-center gap-2 text-xs text-[#55705c]"><CloudSun className="h-4 w-4 text-[#b4843c]" />{todayForecast ? `${todayForecast.high}° / ${todayForecast.low}°C` : 'No forecast'}</div>
+            </div>
+            {weatherError ? <p className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700">{weatherError}</p> : <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{forecast.slice(0, 4).map((day) => <div key={day.date} className="rounded-xl border border-[#d2ddc8] bg-[#eef4e9] p-3"><p className="text-[10px] font-semibold text-[#718446]">{new Date(`${day.date}T12:00:00`).toLocaleDateString('en', { weekday: 'short' })}</p><p className="mt-2 text-sm font-bold text-[#183d2d]">{day.high}° / {day.low}°</p><p className="mt-1 text-[10px] text-[#55705c]">Rain {day.rain}% • Wind {Math.round(day.wind)}</p></div>)}</div>}
+            {!weatherLoading && !weatherError && forecast.length > 4 && <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-7">{forecast.slice(4).map((day) => <div key={day.date} className="rounded-xl border border-[#d2ddc8] bg-white p-2 text-center"><p className="text-[10px] text-[#718446]">{new Date(`${day.date}T12:00:00`).toLocaleDateString('en', { weekday: 'short' })}</p><p className="mt-1 text-xs font-bold text-[#183d2d]">{day.high}°</p><p className="text-[10px] text-[#55705c]">{day.rain}% rain</p></div>)}</div>}
+          </CardContent>
+        </Card>
 
         <div className="grid gap-4 xl:grid-cols-4">
           <Card className="border border-[#cbd8c5] bg-[#f5f7f1] shadow-[0_14px_32px_rgba(17,71,35,0.07)]">

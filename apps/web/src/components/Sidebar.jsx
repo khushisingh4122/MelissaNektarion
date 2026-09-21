@@ -14,7 +14,6 @@ import {
   Settings,
   HelpCircle,
   X,
-  Sparkles,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { cn } from '../lib/utils';
@@ -60,15 +59,6 @@ const Sidebar = ({ isOpen, onClose }) => {
           <Button variant="ghost" size="sm" onClick={onClose} className="text-[#183d2d] hover:bg-[#e8f1e2]">
             <X className="h-5 w-5" />
           </Button>
-        </div>
-
-        <div className="mx-4 mt-4 rounded-2xl border border-[#d8e3d2] bg-[#e8f1e2] p-3">
-          <div className="flex items-center gap-2 text-[#718446]">
-            <Sparkles className="h-4 w-4 text-[#718446]" />
-            <span className="text-xs font-medium uppercase tracking-[0.18em] text-[#718446]">Season overview</span>
-          </div>
-          <p className="mt-3 text-2xl font-bold text-[#183d2d]">+19.8%</p>
-          <p className="text-xs text-[#718446]">Yield growth this month</p>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4">

@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
+import { MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -7,9 +10,62 @@ import { useWebSocketSimulator } from '../hooks/useWebSocketSimulator.js';
 import { droneData } from '../data/sampleData.js';
 import { useTranslation } from '../i18n/useTranslation.jsx';
 import { apiServerClient } from '../lib/apiServerClient.js';
+import { FARM_BOUNDARY } from '../lib/fieldData.js';
 import { Battery, Camera, Gauge, MapPin, Navigation, Plane, Radio, ShieldCheck, Timer, Plug, Unplug } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
+
+const demoRoute = [
+  [28.6148, 77.2082],
+  [28.6146, 77.2085],
+  [28.6144, 77.2088],
+  [28.6142, 77.2091],
+];
+
+const createDroneIcon = () => L.divIcon({
+  className: 'live-drone-map-icon',
+  html: '<div style="width:42px;height:42px;border-radius:9999px;background:#1f5d3d;border:3px solid white;box-shadow:0 4px 16px rgba(24,61,45,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:20px;">✈</div>',
+  iconSize: [42, 42],
+  iconAnchor: [21, 21],
+});
+
+function FollowDrone({ position }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (position) map.panTo([position.latitude, position.longitude], { animate: true, duration: 0.4 });
+  }, [map, position?.latitude, position?.longitude]);
+
+  return null;
+}
+
+function LiveFarmMap({ position, connected }) {
+  const route = position
+    ? [...demoRoute, [position.latitude, position.longitude]]
+    : demoRoute;
+  const center = position ? [position.latitude, position.longitude] : demoRoute[0];
+
+  return (
+    <div className="relative h-[360px] overflow-hidden rounded-2xl border border-[#cbd8c5]">
+      <MapContainer center={center} zoom={16} style={{ height: '100%', width: '100%' }}>
+        <FollowDrone position={position} />
+        <TileLayer attribution="Imagery &copy; Esri" url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={19} />
+        <Polygon positions={FARM_BOUNDARY} pathOptions={{ color: '#86efac', weight: 2, fillColor: '#86efac', fillOpacity: 0.15 }} />
+        <Polyline positions={route} pathOptions={{ color: '#2563eb', weight: 5, opacity: 0.9 }} />
+        {route.map(([latitude, longitude], index) => (
+          <Marker key={`${latitude}-${longitude}-${index}`} position={[latitude, longitude]} icon={L.divIcon({ className: 'map-waypoint', html: `<div style="width:24px;height:24px;border-radius:9999px;background:#2563eb;border:2px solid white;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;">${index + 1}</div>`, iconSize: [24, 24], iconAnchor: [12, 12] })}>
+            <Popup>Route point {index + 1}</Popup>
+          </Marker>
+        ))}
+        {position && <Marker position={[position.latitude, position.longitude]} icon={createDroneIcon()} zIndexOffset={1000}><Popup><strong>Drone A1</strong><br />{connected ? 'Live Pixhawk GPS' : 'Demo position'}</Popup></Marker>}
+      </MapContainer>
+      <div className="absolute left-3 top-3 z-[1000] rounded-full bg-[#f5f7f1]/95 px-3 py-1.5 text-[10px] font-semibold text-[#355340] shadow-sm">
+        {connected ? 'Live drone GPS' : 'Demo drone position'}
+      </div>
+    </div>
+  );
+}
+
 const DroneMonitoring = () => {
   const { t } = useTranslation();
   const simulatedData = useWebSocketSimulator(droneData);
@@ -17,10 +73,18 @@ const DroneMonitoring = () => {
   const [hardwareStatus, setHardwareStatus] = useState({ connected: false });
   const [connectionString, setConnectionString] = useState('');
   const [hardwareError, setHardwareError] = useState('');
+  const [dronePosition, setDronePosition] = useState({ latitude: droneData.gpsCoordinates.lat, longitude: droneData.gpsCoordinates.lng });
   const [cameraImage, setCameraImage] = useState('');
   const [cameraBusy, setCameraBusy] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [liveOn, setLiveOn] = useState(false);
+  const [capturedImages, setCapturedImages] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('melissa_camera_captures') || '[]');
+    } catch {
+      return [];
+    }
+  });
 
   const cameraUrl = () => `${API_BASE}/camera/latest?ts=${Date.now()}`;
 
@@ -31,7 +95,19 @@ const DroneMonitoring = () => {
       const response = await apiServerClient.fetch('/camera/capture-and-analyze', { method: 'POST' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Camera capture failed.');
-      setCameraImage(cameraUrl());
+      const captured = {
+        id: `capture_${Date.now()}`,
+        url: cameraUrl(),
+        timestamp: new Date().toLocaleString(),
+        location: 'Raspberry Pi camera',
+        analysis: data,
+        analysisFocus: 'complete',
+      };
+      const nextCaptures = [captured, ...capturedImages].slice(0, 12);
+      setCapturedImages(nextCaptures);
+      localStorage.setItem('melissa_camera_captures', JSON.stringify(nextCaptures));
+      localStorage.setItem('melissa_latest_camera_capture', JSON.stringify(captured));
+      setCameraImage(captured.url);
     } catch (error) {
       setCameraError(error.message || 'Camera is not available.');
     } finally {
@@ -57,6 +133,9 @@ const DroneMonitoring = () => {
         gps: 'Locked',
         camera: 'Unknown',
       });
+      if (live.gps?.latitude != null && live.gps?.longitude != null) {
+        setDronePosition({ latitude: live.gps.latitude, longitude: live.gps.longitude });
+      }
     } catch (error) {
       setHardwareError(error.message || 'Could not read Pixhawk telemetry.');
     }
@@ -144,11 +223,7 @@ const DroneMonitoring = () => {
                   <span className="rounded-full bg-[#dcefd5] px-3 py-1 text-[10px] font-semibold text-[#557a45]">In progress</span>
                 </CardHeader>
                 <CardContent>
-                  <div className="relative h-[360px] overflow-hidden rounded-2xl border border-[#cbd8c5] bg-[linear-gradient(180deg,rgba(18,63,45,0.12),rgba(18,63,45,0.22)),url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1400&q=85')] bg-cover bg-center">
-                    <div className="absolute left-[48%] top-[42%] flex h-12 w-12 items-center justify-center rounded-full bg-[#1f5d3d] text-white shadow-lg"><Plane className="h-5 w-5" /></div>
-                    <div className="absolute right-[24%] top-[28%] text-red-500"><span className="text-2xl">▲</span></div>
-                    <div className="absolute bottom-3 left-3 flex gap-2 text-[10px] font-medium"><span className="rounded-full bg-[#f5f7f1] px-3 py-1.5 text-[#355340]">GPS locked</span><span className="rounded-full bg-[#f5f7f1] px-3 py-1.5 text-[#355340]">Route active</span></div>
-                  </div>
+                  <LiveFarmMap position={dronePosition} connected={hardwareStatus.connected} />
                 </CardContent>
               </Card>
             </div>
@@ -173,7 +248,7 @@ const DroneMonitoring = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {simulatedData.lastImages.map((image) => (
+              {[...capturedImages, ...simulatedData.lastImages].map((image) => (
                 <div key={image.id} className="space-y-2">
                   <div className="rounded-xl overflow-hidden border aspect-video">
                     <img
@@ -185,6 +260,7 @@ const DroneMonitoring = () => {
                   <div>
                     <p className="font-medium text-sm">{image.location}</p>
                     <p className="text-xs text-muted-foreground">{image.timestamp}</p>
+                    {image.analysis && <p className="mt-1 text-xs text-emerald-700">AI analysis ready in AI Insights</p>}
                   </div>
                 </div>
               ))}
