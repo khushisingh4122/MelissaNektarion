@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from tempfile import NamedTemporaryFile
 from pathlib import Path
@@ -17,7 +17,10 @@ ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
 @router.post("/analyze-image")
-async def analyze_crop_image(file: UploadFile = File(...)):
+async def analyze_crop_image(
+    file: UploadFile = File(...),
+    analysis_focus: str = Form("complete"),
+):
     """Analyze a crop image with the configured disease model."""
     if file.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(
@@ -39,7 +42,7 @@ async def analyze_crop_image(file: UploadFile = File(...)):
         temporary_path = Path(temporary_file.name)
 
     try:
-        return analyze_image(temporary_path)
+        return analyze_image(temporary_path, analysis_focus=analysis_focus)
     finally:
         temporary_path.unlink(missing_ok=True)
 

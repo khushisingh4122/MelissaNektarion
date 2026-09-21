@@ -69,15 +69,19 @@ def top_level_guidance(detections: list[dict]) -> dict:
     }
 
 
-def analyze_image(image_path: Path) -> dict:
+def analyze_image(image_path: Path, analysis_focus: str = "complete") -> dict:
+    allowed_focuses = {"complete", "crop", "disease", "pest", "prevention"}
+    if analysis_focus not in allowed_focuses:
+        analysis_focus = "complete"
+
     model_path = os.getenv("CROP_DISEASE_MODEL_PATH")
     if not model_path:
-        vision = groq_vision_analysis(image_path)
+        vision = groq_vision_analysis(image_path, analysis_focus)
         if vision:
             return {"status": "analyzed_by_groq", **vision}
         return {
             "status": "model_not_configured",
-            "message": "Configure CROP_DISEASE_MODEL_PATH with a trained crop disease model.",
+            "message": "No local model is configured and the Groq vision request failed. Check GROQ_API_KEY, GROQ_VISION_MODEL, and network access, then restart the backend.",
             "disease": None,
             "confidence": None,
             "solution": None,
@@ -87,9 +91,12 @@ def analyze_image(image_path: Path) -> dict:
     if not model_file.is_absolute():
         model_file = Path(__file__).resolve().parents[4] / model_file
     if not model_file.exists():
+        vision = groq_vision_analysis(image_path, analysis_focus)
+        if vision:
+            return {"status": "analyzed_by_groq", **vision}
         return {
             "status": "model_unavailable",
-            "message": f"The configured disease model was not found: {model_file}",
+            "message": f"The local model was not found and Groq vision was unavailable. Check GROQ_API_KEY and GROQ_VISION_MODEL. Missing local file: {model_file}",
             "disease": None,
             "confidence": None,
             "solution": None,
@@ -130,7 +137,7 @@ def analyze_image(image_path: Path) -> dict:
             detections.append(build_detection(name, float(confidence) * 100))
     fallback = detections[0]["solution"] if detections else "No clear disease or pest was detected. Capture a closer, well-lit image and monitor the crop."
     if not detections:
-        vision = groq_vision_analysis(image_path)
+        vision = groq_vision_analysis(image_path, analysis_focus)
         if vision:
             return {"status": "analyzed_by_groq", **vision}
     return {
@@ -193,7 +200,7 @@ def llm_guidance(findings: list[dict], fallback: str) -> dict:
         }
 
 
-def groq_vision_analysis(image_path: Path) -> dict | None:
+def groq_vision_analysis(image_path: Path, analysis_focus: str = "complete") -> dict | None:
     """Use Groq vision as a fallback when the trained detector finds nothing."""
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
@@ -216,8 +223,9 @@ def groq_vision_analysis(image_path: Path) -> dict | None:
                         {
                             "type": "text",
                             "text": (
-                                "Inspect this crop image. Identify the most likely crop, disease, pest, or healthy condition. "
-                                "Return concise sections exactly named: Finding, Confidence, Prevention, Precautions, Next step. "
+                                f"Inspect this crop image with focus on {analysis_focus}. Identify the crop when possible, "
+                                "then assess disease, pest, prevention, and next step as relevant. "
+                                "Return concise sections exactly named: Crop, Finding, Confidence, Prevention, Precautions, Next step. "
                                 "If the image is unclear, say Uncertain and explain what photo is needed. Do not give pesticide dosage."
                             ),
                         },
