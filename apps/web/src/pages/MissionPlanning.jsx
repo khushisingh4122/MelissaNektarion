@@ -38,6 +38,7 @@ import {
 import { MapPin, Plus, Undo2, Trash2, Save, RotateCcw, Radio, MonitorSmartphone } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation.jsx';
 import { apiServerClient } from '../lib/apiServerClient.js';
+import { fieldZones } from '../data/sampleData.js';
 
 const DEFAULT_FORM_DATA = {
   missionName: 'Pollination Mission 01',
@@ -56,6 +57,99 @@ const MISSION_TYPES = [
 ];
 
 const labelFor = (options, value) => options.find((opt) => opt.value === value)?.label || '';
+
+const FIELD_ZONE_BY_ID = {
+  'field-a': 'north',
+  'field-b': 'east',
+  'field-c': 'south',
+  'field-d': 'west',
+};
+
+const isPointInsidePolygon = (latitude, longitude, polygon) => {
+  const epsilon = 0.000001;
+
+  const isOnSegment = (start, end) => {
+    const cross = (latitude - start[0]) * (end[1] - start[1]) -
+      (longitude - start[1]) * (end[0] - start[0]);
+    if (Math.abs(cross) > epsilon) return false;
+    return latitude >= Math.min(start[0], end[0]) - epsilon &&
+      latitude <= Math.max(start[0], end[0]) + epsilon &&
+      longitude >= Math.min(start[1], end[1]) - epsilon &&
+      longitude <= Math.max(start[1], end[1]) + epsilon;
+  };
+
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const [currentLatitude, currentLongitude] = polygon[index];
+    const [previousLatitude, previousLongitude] = polygon[previous];
+    if (isOnSegment([currentLatitude, currentLongitude], [previousLatitude, previousLongitude])) {
+      return true;
+    }
+    const intersects =
+      currentLongitude > longitude !== previousLongitude > longitude &&
+      latitude < ((previousLatitude - currentLatitude) * (longitude - currentLongitude)) /
+        (previousLongitude - currentLongitude) + currentLatitude;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+};
+
+const createWaypoint = (latitude, longitude, order) => ({
+  id: generateLocalId('wp'),
+  latitude,
+  longitude,
+  order,
+});
+
+const generatePatternWaypoints = (pattern, boundary) => {
+  if (boundary.length < 3) return [];
+
+  const latitudes = boundary.map(([latitude]) => latitude);
+  const longitudes = boundary.map(([, longitude]) => longitude);
+  const minLatitude = Math.min(...latitudes);
+  const maxLatitude = Math.max(...latitudes);
+  const minLongitude = Math.min(...longitudes);
+  const maxLongitude = Math.max(...longitudes);
+  const latitudePadding = (maxLatitude - minLatitude) * 0.12;
+  const longitudePadding = (maxLongitude - minLongitude) * 0.12;
+  const innerMinLatitude = minLatitude + latitudePadding;
+  const innerMaxLatitude = maxLatitude - latitudePadding;
+  const innerMinLongitude = minLongitude + longitudePadding;
+  const innerMaxLongitude = maxLongitude - longitudePadding;
+
+  if (pattern === 'linear') {
+    return Array.from({ length: 6 }, (_, index) => {
+      const ratio = index / 5;
+      return createWaypoint(
+        innerMinLatitude + (innerMaxLatitude - innerMinLatitude) * ratio,
+        innerMinLongitude + (innerMaxLongitude - innerMinLongitude) * ratio,
+        index + 1
+      );
+    });
+  }
+
+  if (pattern !== 'grid') return [];
+
+  const rows = 5;
+  const columns = 5;
+  const generated = [];
+  for (let row = 0; row < rows; row += 1) {
+    const latitudeRatio = row / (rows - 1);
+    const latitude = innerMaxLatitude - (innerMaxLatitude - innerMinLatitude) * latitudeRatio;
+    const columnIndexes = row % 2 === 0
+      ? Array.from({ length: columns }, (_, index) => index)
+      : Array.from({ length: columns }, (_, index) => columns - 1 - index);
+    columnIndexes.forEach((column) => {
+      const longitudeRatio = column / (columns - 1);
+      generated.push(createWaypoint(
+        latitude,
+        innerMinLongitude + (innerMaxLongitude - innerMinLongitude) * longitudeRatio,
+        generated.length + 1
+      ));
+    });
+  }
+  return generated;
+};
 
 const MissionPlanning = () => {
   const { t } = useTranslation();
@@ -78,6 +172,12 @@ const MissionPlanning = () => {
   const fieldLabel = labelFor(FIELD_OPTIONS, formData.field);
   const patternLabel = labelFor(PATTERN_OPTIONS, formData.pattern) || '—';
   const priorityLabel = labelFor(PRIORITY_OPTIONS, formData.priority) || '—';
+  const selectedField = fieldZones.find(
+    (field) => field.id === FIELD_ZONE_BY_ID[formData.field]
+  );
+  const selectedFieldBoundary = selectedField?.geometry.coordinates[0].map(
+    ([longitude, latitude]) => [latitude, longitude]
+  ) || [];
 
   const routeDistance = useMemo(() => calculateRouteDistance(waypoints), [waypoints]);
   const estimatedFlightTime = useMemo(
@@ -99,14 +199,43 @@ const MissionPlanning = () => {
   const handleFieldChange = (key, value) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: undefined }));
+    if (key === 'field' && value !== formData.field) {
+      setWaypoints([]);
+      setErrors((prev) => ({ ...prev, waypoints: undefined }));
+    }
   };
 
   const handleMapClick = (lat, lng) => {
+    if (!formData.field) {
+      toast.error('Select a field before adding waypoints.');
+      return;
+    }
+
+    if (selectedFieldBoundary.length > 2 && !isPointInsidePolygon(lat, lng, selectedFieldBoundary)) {
+      toast.error('Select waypoints inside the selected field boundary.');
+      return;
+    }
+
     setWaypoints((prev) => {
       const nextOrder = prev.length + 1;
       return [...prev, { id: generateLocalId('wp'), latitude: lat, longitude: lng, order: nextOrder }];
     });
     setErrors((prev) => ({ ...prev, waypoints: undefined }));
+  };
+
+  const handleGenerateRoute = () => {
+    if (!formData.field) {
+      toast.error('Select a field before generating a route.');
+      return;
+    }
+    if (formData.pattern === 'custom') {
+      toast.info('Custom route selected. Click inside the field to add waypoints.');
+      return;
+    }
+    const generatedWaypoints = generatePatternWaypoints(formData.pattern, selectedFieldBoundary);
+    setWaypoints(generatedWaypoints);
+    setErrors((prev) => ({ ...prev, waypoints: undefined }));
+    toast.success(`${patternLabel} route generated with ${generatedWaypoints.length} waypoints.`);
   };
 
   const renumberWaypoints = (list) =>
@@ -132,23 +261,8 @@ const MissionPlanning = () => {
   };
 
   const handleAddWaypointManually = () => {
-    setWaypoints((prev) => {
-      const last = [...prev].sort((a, b) => a.order - b.order).at(-1);
-      const base = last ? [last.latitude, last.longitude] : DEFAULT_MAP_CENTER;
-      // Small deterministic offset so consecutive manual adds don't stack exactly.
-      const jitter = 0.0004 * (prev.length + 1);
-      const nextOrder = prev.length + 1;
-      return [
-        ...prev,
-        {
-          id: generateLocalId('wp'),
-          latitude: base[0] + jitter,
-          longitude: base[1] + jitter,
-          order: nextOrder,
-        },
-      ];
-    });
-    setErrors((prev) => ({ ...prev, waypoints: undefined }));
+    setFormData((prev) => ({ ...prev, pattern: 'custom' }));
+    toast.info('Custom mode active. Click the field to place WP1, WP2, and the next points.');
   };
 
   // ---------------------------------------------------------------------
@@ -417,9 +531,13 @@ const MissionPlanning = () => {
                     <CardTitle className="text-lg">Flight Route</CardTitle>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={handleGenerateRoute}>
+                      <MapPin className="w-4 h-4" />
+                      Generate Route
+                    </Button>
                     <Button type="button" variant="outline" size="sm" onClick={handleAddWaypointManually}>
                       <Plus className="w-4 h-4" />
-                      Add Waypoint
+                      Add Custom Point
                     </Button>
                     <Button
                       type="button"
@@ -453,6 +571,8 @@ const MissionPlanning = () => {
                   onMapClick={handleMapClick}
                   onRemoveWaypoint={handleRemoveWaypoint}
                   center={mapCenter}
+                  fieldBoundary={selectedFieldBoundary}
+                  fieldName={selectedField?.name}
                 />
                 {errors.waypoints && <p className="text-xs text-destructive">{errors.waypoints}</p>}
 

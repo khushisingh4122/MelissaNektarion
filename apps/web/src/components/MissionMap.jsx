@@ -1,11 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 
 import {
   MapContainer,
   TileLayer,
   Marker,
   Polyline,
+  Polygon,
   Popup,
+  useMap,
   useMapEvents,
 } from 'react-leaflet';
 
@@ -83,6 +85,21 @@ function MapClickHandler({ onMapClick, disabled }) {
   return null;
 }
 
+function MapViewport({ center, fieldBoundary }) {
+  const map = useMap();
+
+  React.useEffect(() => {
+    if (fieldBoundary?.length > 2) {
+      map.fitBounds(fieldBoundary, { padding: [24, 24] });
+      return;
+    }
+
+    map.setView(center, 16);
+  }, [center, fieldBoundary, map]);
+
+  return null;
+}
+
 /**
  * Interactive mission-planning map.
  *
@@ -98,9 +115,12 @@ const MissionMap = ({
   onMapClick,
   onRemoveWaypoint,
   center,
+  fieldBoundary = [],
+  fieldName = '',
   disabled = false,
   heightClassName = 'h-[420px] sm:h-[480px] lg:h-[560px]',
 }) => {
+  const [mapStyle, setMapStyle] = useState('street');
   const orderedWaypoints = useMemo(
     () =>
       [...waypoints].sort(
@@ -142,13 +162,38 @@ const MissionMap = ({
           background: '#f3f4f6',
         }}
       >
+        <MapViewport center={center} fieldBoundary={fieldBoundary} />
+
+        <div className="leaflet-top leaflet-right" style={{ zIndex: 1000 }}>
+          <div className="leaflet-control leaflet-bar flex overflow-hidden rounded-lg border-0 shadow-md">
+            <button
+              type="button"
+              onClick={() => setMapStyle('street')}
+              className={`border-0 px-3 py-2 text-xs font-semibold ${mapStyle === 'street' ? 'bg-white text-blue-700' : 'bg-white/90 text-slate-700'}`}
+            >
+              Map
+            </button>
+            <button
+              type="button"
+              onClick={() => setMapStyle('satellite')}
+              className={`border-l border-slate-200 px-3 py-2 text-xs font-semibold ${mapStyle === 'satellite' ? 'bg-white text-blue-700' : 'bg-white/90 text-slate-700'}`}
+            >
+              Satellite
+            </button>
+          </div>
+        </div>
+
         {/*
          * Keep the actual map light and readable even when
          * the application's dashboard is using dark mode.
          */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution={mapStyle === 'satellite'
+            ? 'Imagery &copy; Esri'
+            : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
+          url={mapStyle === 'satellite'
+            ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'}
           maxZoom={19}
         />
 
@@ -157,13 +202,28 @@ const MissionMap = ({
           disabled={disabled}
         />
 
+        {fieldBoundary.length > 2 && (
+          <Polygon
+            positions={fieldBoundary}
+            pathOptions={{
+              color: '#16a34a',
+              weight: 3,
+              fillColor: '#86efac',
+              fillOpacity: 0.2,
+              interactive: false,
+            }}
+          >
+            <Popup>{fieldName || 'Selected field'}</Popup>
+          </Polygon>
+        )}
+
         {/* Mission route */}
         {polylinePositions.length > 1 && (
           <Polyline
             positions={polylinePositions}
             pathOptions={{
-              color: '#3b82f6',
-              weight: 4,
+              color: '#2563eb',
+              weight: 5,
               opacity: 0.9,
             }}
           />

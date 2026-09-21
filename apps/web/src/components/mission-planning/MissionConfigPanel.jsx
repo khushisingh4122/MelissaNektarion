@@ -23,6 +23,7 @@ export const FIELD_OPTIONS = [
   { value: 'field-a', label: 'Field A' },
   { value: 'field-b', label: 'Field B' },
   { value: 'field-c', label: 'Field C' },
+  { value: 'field-d', label: 'Field D' },
 ];
 
 export const PATTERN_OPTIONS = [
