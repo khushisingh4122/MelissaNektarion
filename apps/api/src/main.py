@@ -25,6 +25,7 @@ from src.api.ai import router as ai_router
 from src.api.alerts import router as alerts_router
 from src.api.pixhawk import router as pixhawk_router
 from src.api.camera import router as camera_router
+from src.api.hardware import router as hardware_router
 
 
 Base.metadata.create_all(bind=engine)
@@ -100,6 +101,7 @@ for router in (
 	drones_router,
 	pixhawk_router,
 	camera_router,
+	hardware_router,
 ):
 	app.include_router(router)
 

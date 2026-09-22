@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from src.database.database import get_db
 from src.models.mission import Mission
 from src.services.drone_runtime import drone_runtime
+from src.services.hardware_gateway import hardware_gateway
 
 router = APIRouter(prefix="/pollination", tags=["Pollination"])
 
@@ -33,7 +34,15 @@ def get_pollination_progress(mission_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/mission/{mission_id}/toggle")
-def toggle_pollination(mission_id: int, payload: PollinationToggle):
+def toggle_pollination(mission_id: int, payload: PollinationToggle, db: Session = Depends(get_db)):
+    mission = db.query(Mission).filter(Mission.id == mission_id).first()
+    if not mission:
+        raise HTTPException(status_code=404, detail="Mission not found")
+    hardware_gateway.enqueue(
+        mission.drone_id,
+        "pump",
+        {"running": not payload.paused, "mission_id": mission_id},
+    )
     if payload.paused:
         result = drone_runtime.pause_pollination()
         return {"status": "paused", "pump_running": False, "drone_status": result["status"], "runtime": result}

@@ -7,6 +7,7 @@ from src.models.mission import Mission
 from src.schemas.mission import MissionCreate, MissionUpdate
 from src.services.drone_runtime import drone_runtime
 from src.api.pixhawk import pixhawk
+from src.services.hardware_gateway import hardware_gateway
 
 
 router = APIRouter(
@@ -113,18 +114,24 @@ def validate_mission(
         raise HTTPException(status_code=404, detail="Mission not found")
 
     runtime = drone_runtime.snapshot()
+    hardware = hardware_gateway.telemetry_for(mission.drone_id) or {}
+    hardware_connected = pixhawk.connection is not None or hardware.get("connected", False)
+    hardware_gps = hardware.get("gps") or runtime["gps"]
+    hardware_battery = hardware.get("battery", runtime["battery"])
     reasons = []
 
-    if pixhawk.connection is None:
+    if not hardware_connected:
         reasons.append("Pixhawk is not connected.")
     if not runtime["connected"]:
         reasons.append("Live drone telemetry is not connected.")
     if not runtime["internet_connected"]:
         reasons.append("Raspberry Pi/backend network connection is unavailable.")
-    if runtime["gps"] is None:
+    if hardware_gps is None:
         reasons.append("GPS position is not available or GPS lock is missing.")
-    if runtime["battery"] < 25.0:
-        reasons.append(f"Battery is too low: {runtime['battery']:.1f}% available.")
+    if hardware_battery is None:
+        reasons.append("Battery telemetry is not available.")
+    elif hardware_battery < 25.0:
+        reasons.append(f"Battery is too low: {hardware_battery:.1f}% available.")
     if not mission.location:
         reasons.append("Mission field is not selected.")
     if not mission.waypoints or len(mission.waypoints) < 2:
@@ -159,7 +166,17 @@ def dispatch_mission(
     db.refresh(mission)
 
     drone_runtime.attach_mission(mission.id, mission.name, waypoints=mission.waypoints or [])
-    return {"sent": True, "status": mission.status, "mission": mission, "runtime": drone_runtime.snapshot()}
+    command = hardware_gateway.enqueue(
+        mission.drone_id,
+        "start_mission",
+        {
+            "mission_id": mission.id,
+            "name": mission.name,
+            "waypoints": mission.waypoints or [],
+            "pollination_zones": mission.pollination_zones or [],
+        },
+    )
+    return {"sent": True, "status": mission.status, "mission": mission, "command": command, "runtime": drone_runtime.snapshot()}
 
 
 @router.post("/{mission_id}/return-home")
@@ -174,7 +191,8 @@ def mission_return_home(
     mission.status = "returning_home"
     db.commit()
     db.refresh(mission)
-    return {"status": mission.status, "runtime": drone_runtime.return_home()}
+    command = hardware_gateway.enqueue(mission.drone_id, "return_home")
+    return {"status": mission.status, "command": command, "runtime": drone_runtime.return_home()}
 
 
 @router.post("/{mission_id}/stop")
@@ -189,7 +207,8 @@ def mission_stop(
     mission.status = "returning_home"
     db.commit()
     db.refresh(mission)
-    return {"status": mission.status, "runtime": drone_runtime.stop_mission()}
+    command = hardware_gateway.enqueue(mission.drone_id, "stop_mission")
+    return {"status": mission.status, "command": command, "runtime": drone_runtime.stop_mission()}
 
 
 @router.post("/{mission_id}/land")
@@ -204,7 +223,8 @@ def mission_land(
     mission.status = "landed"
     db.commit()
     db.refresh(mission)
-    return {"status": mission.status, "runtime": drone_runtime.land_now()}
+    command = hardware_gateway.enqueue(mission.drone_id, "land")
+    return {"status": mission.status, "command": command, "runtime": drone_runtime.land_now()}
 
 
 @router.post("/{mission_id}/manual-override")

@@ -100,6 +100,88 @@ def get_altitude():
     return gps_data["altitude"]
 
 
+def get_speed():
+    if pixhawk_connection is None:
+        return None
+    message = pixhawk_connection.recv_match(type="VFR_HUD", blocking=True, timeout=2)
+    if message is None:
+        return None
+    return {
+        "ground_speed": float(message.groundspeed),
+        "air_speed": float(message.airspeed),
+    }
+
+
+def upload_mission(waypoints):
+    if pixhawk_connection is None:
+        raise RuntimeError("Pixhawk is not connected")
+    pixhawk_connection.mav.mission_clear_all_send(
+        pixhawk_connection.target_system,
+        pixhawk_connection.target_component,
+    )
+    pixhawk_connection.mav.mission_count_send(
+        pixhawk_connection.target_system,
+        len(waypoints),
+    )
+    for index, waypoint in enumerate(waypoints):
+        message = pixhawk_connection.recv_match(type="MISSION_REQUEST", blocking=True, timeout=5)
+        if message is None:
+            raise RuntimeError("Pixhawk did not request mission waypoint")
+        pixhawk_connection.mav.mission_item_int_send(
+            pixhawk_connection.target_system,
+            pixhawk_connection.target_component,
+            index,
+            mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+            mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            int(float(waypoint["latitude"]) * 10**7),
+            int(float(waypoint["longitude"]) * 10**7),
+            10,
+        )
+    pixhawk_connection.recv_match(type="MISSION_ACK", blocking=True, timeout=5)
+
+
+def start_mission():
+    if pixhawk_connection is None:
+        raise RuntimeError("Pixhawk is not connected")
+    pixhawk_connection.set_mode("AUTO")
+
+
+def return_home():
+    if pixhawk_connection is None:
+        raise RuntimeError("Pixhawk is not connected")
+    pixhawk_connection.mav.command_long_send(
+        pixhawk_connection.target_system,
+        pixhawk_connection.target_component,
+        mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH,
+        0,
+        0, 0, 0, 0, 0, 0, 0,
+    )
+
+
+def stop_mission():
+    if pixhawk_connection is None:
+        raise RuntimeError("Pixhawk is not connected")
+    pixhawk_connection.set_mode("LOITER")
+
+
+def land():
+    if pixhawk_connection is None:
+        raise RuntimeError("Pixhawk is not connected")
+    pixhawk_connection.mav.command_long_send(
+        pixhawk_connection.target_system,
+        pixhawk_connection.target_component,
+        mavutil.mavlink.MAV_CMD_NAV_LAND,
+        0,
+        0, 0, 0, 0, 0, 0, 0,
+    )
+
+
 def disconnect_pixhawk():
     """
     Close Pixhawk connection.

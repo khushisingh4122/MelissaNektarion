@@ -1,4 +1,32 @@
 import time
+import os
+
+try:
+    import RPi.GPIO as GPIO
+except ImportError:
+    GPIO = None
+
+
+PUMP_PIN = int(os.getenv("PUMP_GPIO_PIN", "18"))
+_pump_running = False
+
+
+def setup_pump():
+    if GPIO is None:
+        return False
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(PUMP_PIN, GPIO.OUT, initial=GPIO.LOW)
+    return True
+
+
+def set_pump(running):
+    global _pump_running
+    if GPIO is None:
+        _pump_running = bool(running)
+        print(f"Pump {'ON' if running else 'OFF'} (GPIO unavailable; simulation mode)")
+        return
+    GPIO.output(PUMP_PIN, GPIO.HIGH if running else GPIO.LOW)
+    _pump_running = bool(running)
 
 
 def start_pump(duration=2):
@@ -9,18 +37,11 @@ def start_pump(duration=2):
         Pump runtime in seconds.
     """
 
-    print(f"Pollination pump ON for {duration} seconds")
-
-    # Hardware control will be added here later.
-    # Example:
-    # GPIO.output(PUMP_PIN, GPIO.HIGH)
-
-    time.sleep(duration)
-
-    # Example:
-    # GPIO.output(PUMP_PIN, GPIO.LOW)
-
-    print("Pollination pump OFF")
+    set_pump(True)
+    try:
+        time.sleep(duration)
+    finally:
+        set_pump(False)
 
 
 def pollinate_flower():

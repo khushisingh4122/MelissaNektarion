@@ -5,6 +5,7 @@ from src.database.database import get_db
 from src.models.drone import Drone
 from src.schemas.drone import DroneCreate, DroneUpdate
 from src.services.drone_runtime import drone_runtime
+from src.services.hardware_gateway import hardware_gateway
 
 
 router = APIRouter(
@@ -89,17 +90,19 @@ def get_drone_telemetry(
         raise HTTPException(status_code=404, detail="Drone not found")
 
     runtime = drone_runtime.snapshot()
+    hardware = hardware_gateway.telemetry_for(drone_id) or {}
+    gps = hardware.get("gps") or runtime["gps"]
     return {
         "drone_id": drone.id,
         "status": runtime["status"],
-        "battery": runtime["battery"],
-        "speed": runtime["speed"],
-        "altitude": runtime["altitude"],
-        "location": "Apple Orchard Farm" if runtime["gps"] is None else f"{runtime['gps']['latitude']}, {runtime['gps']['longitude']}",
+        "battery": hardware.get("battery", runtime["battery"]),
+        "speed": hardware.get("speed", runtime["speed"]),
+        "altitude": hardware.get("altitude", runtime["altitude"]),
+        "location": "Apple Orchard Farm" if gps is None else f"{gps['latitude']}, {gps['longitude']}",
         "direction": "North-East",
-        "camera": "online",
-        "gps": "locked" if runtime["gps"] else "waiting",
-        "connected": runtime["connected"],
+        "camera": "online" if hardware.get("camera_available") else "waiting",
+        "gps": "locked" if gps else "waiting",
+        "connected": hardware.get("connected", runtime["connected"]),
         "manual_override": runtime["manual_override"],
         "returning_home": runtime["returning_home"],
     }
