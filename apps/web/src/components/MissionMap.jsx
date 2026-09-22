@@ -6,6 +6,7 @@ import {
   Marker,
   Polyline,
   Polygon,
+  Rectangle,
   Popup,
   useMap,
   useMapEvents,
@@ -71,7 +72,7 @@ function createWaypointIcon(order) {
  * Captures map clicks and reports the latitude/longitude
  * back to the parent so a new waypoint can be appended.
  */
-function MapClickHandler({ onMapClick, disabled }) {
+function MapClickHandler({ onMapClick, onMapMove, disabled }) {
   useMapEvents({
     click(event) {
       if (disabled) return;
@@ -79,6 +80,10 @@ function MapClickHandler({ onMapClick, disabled }) {
       const { lat, lng } = event.latlng;
 
       onMapClick(lat, lng);
+    },
+    mousemove(event) {
+      if (disabled || !onMapMove) return;
+      onMapMove(event.latlng.lat, event.latlng.lng);
     },
   });
 
@@ -113,7 +118,10 @@ function MapViewport({ center, fieldBoundary }) {
 const MissionMap = ({
   waypoints,
   onMapClick,
+  onMapMove,
   onRemoveWaypoint,
+  zones = [],
+  draftZone = [],
   center,
   fieldBoundary = [],
   fieldName = '',
@@ -199,6 +207,7 @@ const MissionMap = ({
 
         <MapClickHandler
           onMapClick={onMapClick}
+          onMapMove={onMapMove}
           disabled={disabled}
         />
 
@@ -215,6 +224,45 @@ const MissionMap = ({
           >
             <Popup>{fieldName || 'Selected field'}</Popup>
           </Polygon>
+        )}
+
+        {zones.map((zone) => (
+          <Polygon
+            key={zone.id}
+            positions={zone.coordinates}
+            pathOptions={{
+              color: zone.type === 'pollination' ? '#d97706' : '#dc2626',
+              weight: 3,
+              fillColor: zone.type === 'pollination' ? '#fbbf24' : '#f87171',
+              fillOpacity: 0.35,
+            }}
+          >
+            <Popup>{zone.name}</Popup>
+          </Polygon>
+        ))}
+
+        {draftZone.length > 1 && (
+          <Polyline
+            positions={draftZone}
+            pathOptions={{
+              color: '#7c3aed',
+              weight: 3,
+              dashArray: '8 6',
+            }}
+          />
+        )}
+
+        {draftZone.length === 2 && (
+          <Rectangle
+            bounds={[draftZone[0], draftZone[1]]}
+            pathOptions={{
+              color: '#7c3aed',
+              weight: 3,
+              dashArray: '8 6',
+              fillColor: '#c4b5fd',
+              fillOpacity: 0.2,
+            }}
+          />
         )}
 
         {/* Mission route */}

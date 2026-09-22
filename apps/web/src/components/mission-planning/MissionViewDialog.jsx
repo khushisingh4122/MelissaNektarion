@@ -10,6 +10,9 @@ import { Badge } from '../ui/badge';
 import MissionMap from '../MissionMap.jsx';
 import { formatDistance, formatDuration, DEFAULT_MAP_CENTER } from '../../utils/geo.js';
 import { CROP_OPTIONS, FIELD_OPTIONS, PATTERN_OPTIONS, PRIORITY_OPTIONS } from './MissionConfigPanel.jsx';
+import { fieldZones } from '../../data/sampleData.js';
+
+const FIELD_ZONE_BY_ID = { 'field-a': 'north', 'field-b': 'east', 'field-c': 'south', 'field-d': 'west' };
 
 const STATUS_BADGE = {
   draft: { label: 'Draft', className: 'bg-muted text-muted-foreground border-transparent' },
@@ -41,8 +44,14 @@ const MissionViewDialog = ({ mission, open, onOpenChange }) => {
 
   const statusMeta = STATUS_BADGE[mission.status] || STATUS_BADGE.draft;
   const waypoints = mission.waypoints || [];
+  const zones = [...(mission.pollinationZones || []), ...(mission.pesticideZones || [])];
+  const selectedField = fieldZones.find((field) => field.id === FIELD_ZONE_BY_ID[mission.field]);
+  const fieldBoundary = selectedField?.geometry.coordinates[0].map(([longitude, latitude]) => [latitude, longitude]) || [];
+  const hasMapData = waypoints.length > 0 || fieldBoundary.length > 2 || zones.length > 0;
   const mapCenter =
-    waypoints.length > 0 ? [waypoints[0].latitude, waypoints[0].longitude] : DEFAULT_MAP_CENTER;
+    waypoints.length > 0
+      ? [waypoints[0].latitude, waypoints[0].longitude]
+      : zones[0]?.coordinates?.[0] || fieldBoundary[0] || DEFAULT_MAP_CENTER;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -59,11 +68,14 @@ const MissionViewDialog = ({ mission, open, onOpenChange }) => {
           </DialogDescription>
         </DialogHeader>
 
-        {waypoints.length > 0 && (
+        {hasMapData && (
           <MissionMap
             waypoints={waypoints}
             onMapClick={() => {}}
+            zones={zones}
             center={mapCenter}
+            fieldBoundary={fieldBoundary}
+            fieldName={selectedField?.name}
             disabled
             heightClassName="h-64"
           />
@@ -75,6 +87,8 @@ const MissionViewDialog = ({ mission, open, onOpenChange }) => {
           <DetailRow label="Pattern" value={labelFor(PATTERN_OPTIONS, mission.pattern)} />
           <DetailRow label="Priority" value={labelFor(PRIORITY_OPTIONS, mission.priority)} />
           <DetailRow label="Waypoints" value={waypoints.length} />
+          <DetailRow label="Pollination Zones" value={mission.pollinationZones?.length || 0} />
+          <DetailRow label="Pesticide Zones" value={mission.pesticideZones?.length || 0} />
           <DetailRow label="Route Distance" value={formatDistance(mission.routeDistance)} />
           <DetailRow label="Estimated Time" value={formatDuration(mission.estimatedFlightTime)} />
           <DetailRow

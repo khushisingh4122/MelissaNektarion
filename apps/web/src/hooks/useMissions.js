@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { generateLocalId } from '../utils/geo.js';
+import { apiServerClient } from '../lib/apiServerClient.js';
 
 const STORAGE_KEY = 'melissa_missions';
 
@@ -54,13 +55,58 @@ export const useMissions = () => {
     setStorageError(!ok);
   }, [missions]);
 
+  useEffect(() => {
+    let active = true;
+    apiServerClient.fetch('/missions/')
+      .then((response) => (response.ok ? response.json() : []))
+      .then((serverMissions) => {
+        if (!active || !Array.isArray(serverMissions)) return;
+        setMissions((localMissions) => {
+          const localByBackendId = new Map(
+            localMissions
+              .filter((mission) => mission.backendMissionId)
+              .map((mission) => [String(mission.backendMissionId), mission])
+          );
+          const imported = serverMissions.map((mission) => {
+            const existing = localByBackendId.get(String(mission.id));
+            return {
+              ...existing,
+              id: existing?.id || `backend-${mission.id}`,
+              backendMissionId: mission.id,
+              missionName: mission.mission_name || mission.name,
+              name: mission.name,
+              field: mission.location,
+              crop: mission.crop || existing?.crop || '',
+              altitude: mission.altitude ?? existing?.altitude ?? 10,
+              speed: mission.speed ?? existing?.speed ?? 3,
+              pattern: mission.pattern || existing?.pattern || 'grid',
+              priority: mission.priority || existing?.priority || 'normal',
+              waypoints: mission.waypoints || existing?.waypoints || [],
+              routeDistance: mission.route_distance ?? existing?.routeDistance ?? 0,
+              estimatedFlightTime: mission.estimated_flight_time ?? existing?.estimatedFlightTime ?? 0,
+              pollinationZones: mission.pollination_zones || existing?.pollinationZones || [],
+              pesticideZones: mission.pesticide_zones || existing?.pesticideZones || [],
+              status: mission.status || existing?.status || 'saved',
+              createdAt: existing?.createdAt || new Date().toISOString(),
+            };
+          });
+          const importedIds = new Set(imported.map((mission) => String(mission.backendMissionId)));
+          return [...imported, ...localMissions.filter((mission) => !importedIds.has(String(mission.backendMissionId)))];
+        });
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
   const saveMission = useCallback((missionData) => {
     const now = new Date().toISOString();
     const newMission = {
       id: generateLocalId('mission'),
-      status: 'planned',
+      status: 'saved',
       createdAt: now,
       updatedAt: now,
+      pollinationZones: [],
+      pesticideZones: [],
       ...missionData,
     };
     setMissions((prev) => [newMission, ...prev]);

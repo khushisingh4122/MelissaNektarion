@@ -2,10 +2,14 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { ClipboardList, PlayCircle, Radio } from 'lucide-react';
+import { ClipboardList, PlayCircle, Radio, ShieldCheck } from 'lucide-react';
 
 const STATUS_META = {
   draft: { label: 'Draft', className: 'bg-muted text-muted-foreground border-transparent' },
+  saved: {
+    label: 'Saved',
+    className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20',
+  },
   planned: {
     label: 'Planned',
     className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20',
@@ -13,6 +17,10 @@ const STATUS_META = {
   ready: {
     label: 'Ready',
     className: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20',
+  },
+  dispatched: {
+    label: 'Dispatched',
+    className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20',
   },
 };
 
@@ -40,6 +48,8 @@ const MissionSummaryCard = ({
   routeDistanceLabel,
   flightTimeLabel,
   status,
+  preflight,
+  onCheckMission,
   onStartMission,
   canStartMission,
 }) => {
@@ -73,18 +83,30 @@ const MissionSummaryCard = ({
         <div className="pt-4">
           <Button
             type="button"
+            className="mb-2 w-full"
+            variant="outline"
+            onClick={onCheckMission}
+            disabled={!missionNameLabel || preflight?.status === 'checking'}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            {preflight?.status === 'checking' ? 'Checking mission...' : 'Check Mission'}
+          </Button>
+          {preflight?.status === 'passed' && <p className="mb-2 text-xs font-semibold text-green-700">All pre-flight checks passed.</p>}
+          {preflight?.status === 'failed' && <div className="mb-2 rounded-lg bg-red-50 p-2 text-xs text-red-700">{preflight.reasons?.map((reason) => <p key={reason}>{reason}</p>)}</div>}
+          <Button
+            type="button"
             className="w-full"
             variant="secondary"
             onClick={onStartMission}
-            disabled={!canStartMission}
+            disabled={!canStartMission || preflight?.status !== 'passed'}
           >
             <PlayCircle className="w-4 h-4" />
             Start Mission
           </Button>
-          {!canStartMission && (
+          {(!canStartMission || preflight?.status !== 'passed') && (
             <p className="text-xs text-muted-foreground mt-2 flex items-start gap-1.5">
               <Radio className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              Save this mission first to enable execution readiness.
+              Save the mission, run the checks, then start it manually.
             </p>
           )}
         </div>

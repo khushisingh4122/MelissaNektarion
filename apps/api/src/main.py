@@ -36,6 +36,25 @@ try:
 		if "phone" not in columns:
 			with engine.begin() as connection:
 				connection.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(30)"))
+	if "missions" in inspector.get_table_names():
+		mission_columns = {column["name"] for column in inspector.get_columns("missions")}
+		mission_migrations = {
+			"pollination_zones": "JSON",
+			"pesticide_zones": "JSON",
+			"mission_name": "VARCHAR(100)",
+			"crop": "VARCHAR(50)",
+			"altitude": "FLOAT",
+			"speed": "FLOAT",
+			"pattern": "VARCHAR(50)",
+			"priority": "VARCHAR(50)",
+			"waypoints": "JSON",
+			"route_distance": "FLOAT",
+			"estimated_flight_time": "FLOAT",
+		}
+		with engine.begin() as connection:
+			for column_name, column_type in mission_migrations.items():
+				if column_name not in mission_columns:
+					connection.execute(text(f"ALTER TABLE missions ADD COLUMN {column_name} {column_type}"))
 except Exception as error:
 	print(f"Database migration warning: {error}")
 

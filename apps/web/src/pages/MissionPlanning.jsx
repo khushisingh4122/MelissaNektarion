@@ -35,7 +35,7 @@ import {
   generateLocalId,
   DEFAULT_MAP_CENTER,
 } from '../utils/geo.js';
-import { MapPin, Plus, Undo2, Trash2, Save, RotateCcw, Radio, MonitorSmartphone } from 'lucide-react';
+import { MapPin, Plus, Undo2, Trash2, Save, RotateCcw, Radio, MonitorSmartphone, Check, X } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation.jsx';
 import { apiServerClient } from '../lib/apiServerClient.js';
 import { fieldZones } from '../data/sampleData.js';
@@ -163,6 +163,12 @@ const MissionPlanning = () => {
   const [missionType, setMissionType] = useState('pollination');
   const [droneId, setDroneId] = useState('1');
   const [backendMissionId, setBackendMissionId] = useState(null);
+  const [mapMode, setMapMode] = useState('route');
+  const [zoneShape, setZoneShape] = useState('polygon');
+  const [preflight, setPreflight] = useState({ status: 'not_checked', reasons: [] });
+  const [pollinationZones, setPollinationZones] = useState([]);
+  const [pesticideZones, setPesticideZones] = useState([]);
+  const [draftZone, setDraftZone] = useState([]);
 
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [viewMission, setViewMission] = useState(null);
@@ -201,6 +207,11 @@ const MissionPlanning = () => {
     setErrors((prev) => ({ ...prev, [key]: undefined }));
     if (key === 'field' && value !== formData.field) {
       setWaypoints([]);
+      setPollinationZones([]);
+      setPesticideZones([]);
+      setDraftZone([]);
+      setMapMode('route');
+      setZoneShape('polygon');
       setErrors((prev) => ({ ...prev, waypoints: undefined }));
     }
   };
@@ -216,11 +227,61 @@ const MissionPlanning = () => {
       return;
     }
 
+    if (mapMode !== 'route') {
+      if (zoneShape === 'rectangle') {
+        if (draftZone.length === 0) {
+          setDraftZone([[lat, lng]]);
+        } else {
+          const [startLatitude, startLongitude] = draftZone[0];
+          finishZone([
+            [startLatitude, startLongitude],
+            [startLatitude, lng],
+            [lat, lng],
+            [lat, startLongitude],
+          ]);
+        }
+        return;
+      }
+      setDraftZone((prev) => [...prev, [lat, lng]]);
+      return;
+    }
+
     setWaypoints((prev) => {
       const nextOrder = prev.length + 1;
       return [...prev, { id: generateLocalId('wp'), latitude: lat, longitude: lng, order: nextOrder }];
     });
     setErrors((prev) => ({ ...prev, waypoints: undefined }));
+  };
+
+  const handleMapMove = (lat, lng) => {
+    if (mapMode === 'route' || zoneShape !== 'rectangle' || draftZone.length !== 1) return;
+    setDraftZone([draftZone[0], [lat, lng]]);
+  };
+
+  const finishZone = (zoneCoordinates = draftZone) => {
+    if (mapMode === 'route' || zoneCoordinates.length < 3) {
+      toast.error('Add at least 3 points to draw a zone.');
+      return;
+    }
+
+    const zone = {
+      id: generateLocalId(`${mapMode}-zone`),
+      name: `${mapMode === 'pollination' ? 'Pollination' : 'Pesticide'} zone ${mapMode === 'pollination' ? pollinationZones.length + 1 : pesticideZones.length + 1}`,
+      type: mapMode,
+      shape: zoneShape,
+      coordinates: zoneCoordinates,
+    };
+    if (mapMode === 'pollination') setPollinationZones((prev) => [...prev, zone]);
+    else setPesticideZones((prev) => [...prev, zone]);
+    setDraftZone([]);
+    toast.success(`${zone.name} saved.`);
+  };
+
+  const clearDraftZone = () => setDraftZone([]);
+
+  const removeZone = (zoneId, zoneType) => {
+    if (zoneType === 'pollination') setPollinationZones((prev) => prev.filter((zone) => zone.id !== zoneId));
+    else setPesticideZones((prev) => prev.filter((zone) => zone.id !== zoneId));
   };
 
   const handleGenerateRoute = () => {
@@ -248,13 +309,31 @@ const MissionPlanning = () => {
   };
 
   const handleUndoLast = () => {
-    setWaypoints((prev) => {
-      if (prev.length === 0) return prev;
-      const ordered = [...prev].sort((a, b) => a.order - b.order);
-      ordered.pop();
-      return ordered;
-    });
+    if (mapMode === 'route') {
+      setWaypoints((prev) => {
+        if (prev.length === 0) return prev;
+        const ordered = [...prev].sort((a, b) => a.order - b.order);
+        ordered.pop();
+        return ordered;
+      });
+      return;
+    }
+
+    if (draftZone.length > 0) {
+      setDraftZone([]);
+      return;
+    }
+
+    if (mapMode === 'pollination') {
+      setPollinationZones((prev) => prev.slice(0, -1));
+    } else {
+      setPesticideZones((prev) => prev.slice(0, -1));
+    }
   };
+
+  const canUndo = mapMode === 'route'
+    ? waypoints.length > 0
+    : draftZone.length > 0 || (mapMode === 'pollination' ? pollinationZones.length > 0 : pesticideZones.length > 0);
 
   const handleClearRoute = () => {
     setWaypoints([]);
@@ -272,6 +351,11 @@ const MissionPlanning = () => {
   const validate = () => {
     const nextErrors = {};
     if (!formData.missionName.trim()) nextErrors.missionName = 'Mission name is required.';
+    const duplicateName = missions.some((mission) =>
+      mission.id !== editingMissionId &&
+      mission.missionName?.trim().toLowerCase() === formData.missionName.trim().toLowerCase()
+    );
+    if (duplicateName) nextErrors.missionName = 'Use a different mission name. This name already exists.';
     if (!formData.crop) nextErrors.crop = 'Select a crop.';
     if (!formData.field) nextErrors.field = 'Select a field.';
 
@@ -315,22 +399,27 @@ const MissionPlanning = () => {
       waypoints,
       routeDistance,
       estimatedFlightTime,
-      status: 'planned',
+      pollinationZones,
+      pesticideZones,
+      status: 'saved',
     };
 
+    let localMissionId = editingMissionId;
     if (editingMissionId) {
       updateMission(editingMissionId, payload);
     } else {
       const created = saveMission(payload);
       setEditingMissionId(created.id);
+      localMissionId = created.id;
     }
 
+    let savedBackendMissionId = backendMissionId;
     try {
       if (backendMissionId) {
         await apiServerClient.fetch(`/missions/${backendMissionId}/status`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'planned' }),
+          body: JSON.stringify({ status: 'saved', pollination_zones: payload.pollinationZones, pesticide_zones: payload.pesticideZones }),
         });
       } else {
         const response = await apiServerClient.fetch('/missions/', {
@@ -340,24 +429,71 @@ const MissionPlanning = () => {
             name: formData.missionName.trim(),
             location: formData.field,
             drone_id: Number(droneId),
+            status: 'saved',
+            mission_name: payload.missionName,
+            crop: payload.crop,
+            altitude: payload.altitude,
+            speed: payload.speed,
+            pattern: payload.pattern,
+            priority: payload.priority,
+            waypoints: payload.waypoints,
+            route_distance: payload.routeDistance,
+            estimated_flight_time: payload.estimatedFlightTime,
+            pollination_zones: payload.pollinationZones,
+            pesticide_zones: payload.pesticideZones,
           }),
         });
         if (!response.ok) throw new Error('Mission could not be saved to the backend.');
         const createdBackendMission = await response.json();
         setBackendMissionId(createdBackendMission.id);
+        savedBackendMissionId = createdBackendMission.id;
       }
     } catch (error) {
       toast.error(error.message || 'Backend mission save failed.');
       return;
     }
 
-    setStatus('planned');
-    toast.success('Mission saved successfully.');
+    localStorage.setItem('melissa_active_mission', JSON.stringify({
+      ...payload,
+      id: localMissionId || null,
+      backendMissionId: savedBackendMissionId,
+    }));
+    if (localMissionId) updateMission(localMissionId, { ...payload, backendMissionId: savedBackendMissionId });
+
+    setStatus('saved');
+    setPreflight({ status: 'not_checked', reasons: [] });
+    toast.success('Mission saved successfully. Start it manually when ready.');
   };
 
   // ---------------------------------------------------------------------
   // Start Mission (frontend-only simulation)
   // ---------------------------------------------------------------------
+
+  const handleCheckMission = async () => {
+    if (!editingMissionId || !backendMissionId) {
+      setPreflight({ status: 'failed', reasons: ['Save the mission to the backend before checking it.'] });
+      toast.error('Save the mission before checking it.');
+      return;
+    }
+
+    setPreflight({ status: 'checking', reasons: [] });
+    try {
+      const response = await apiServerClient.fetch(`/missions/${backendMissionId}/validate`, { method: 'POST' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.valid === false) {
+        const reasons = result.reasons || [result.detail || 'Mission pre-flight checks failed.'];
+        setPreflight({ status: 'failed', reasons });
+        toast.error('Mission cannot start.', { description: reasons.join(' ') });
+        return;
+      }
+      setPreflight({ status: 'passed', reasons: [] });
+      setStatus('ready');
+      toast.success('Mission checks passed. You can start the mission now.');
+    } catch (error) {
+      setPreflight({ status: 'failed', reasons: [error.message || 'Unable to check the mission.'] });
+      toast.error(error.message || 'Mission pre-flight check failed.');
+    }
+  };
 
   const handleStartMission = async () => {
     if (!editingMissionId) {
@@ -368,9 +504,11 @@ const MissionPlanning = () => {
       toast.error('Save this mission to the backend before dispatching it.');
       return;
     }
+    if (preflight.status !== 'passed') {
+      toast.error('Check the mission before starting it.');
+      return;
+    }
     try {
-      const validation = await apiServerClient.fetch(`/missions/${backendMissionId}/validate`, { method: 'POST' });
-      if (!validation.ok) throw new Error('Mission validation failed.');
       const dispatch = await apiServerClient.fetch(`/missions/${backendMissionId}/dispatch`, { method: 'POST' });
       if (!dispatch.ok) throw new Error('Mission dispatch failed.');
       setMissionStatus(editingMissionId, 'dispatched');
@@ -388,10 +526,16 @@ const MissionPlanning = () => {
   const performReset = () => {
     setFormData(DEFAULT_FORM_DATA);
     setWaypoints([]);
+    setPollinationZones([]);
+    setPesticideZones([]);
+    setDraftZone([]);
+    setMapMode('route');
+    setZoneShape('polygon');
     setErrors({});
     setEditingMissionId(null);
     setBackendMissionId(null);
     setStatus('draft');
+    setPreflight({ status: 'not_checked', reasons: [] });
     setResetDialogOpen(false);
   };
 
@@ -418,8 +562,14 @@ const MissionPlanning = () => {
       priority: mission.priority || 'normal',
     });
     setWaypoints(mission.waypoints || []);
+    setPollinationZones(mission.pollinationZones || []);
+    setPesticideZones(mission.pesticideZones || []);
+    setDraftZone([]);
+    setMapMode('route');
+    setZoneShape('polygon');
     setEditingMissionId(mission.id);
     setStatus(mission.status || 'draft');
+    setPreflight({ status: 'not_checked', reasons: [] });
     setErrors({});
     toast.info(`Editing "${mission.missionName}"`);
     if (typeof window !== 'undefined') {
@@ -544,7 +694,7 @@ const MissionPlanning = () => {
                       variant="outline"
                       size="sm"
                       onClick={handleUndoLast}
-                      disabled={waypoints.length === 0}
+                      disabled={!canUndo}
                     >
                       <Undo2 className="w-4 h-4" />
                       Undo Last
@@ -564,17 +714,82 @@ const MissionPlanning = () => {
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Click anywhere on the map to add a waypoint. Waypoints connect in order, WP1 → WP2 → WP3…
+                  Choose a map mode, then click inside the selected field. Route mode adds waypoints; zone modes draw the areas where the pump or pesticide system may operate.
                 </p>
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#cbd8c5] bg-[#eef4e9] p-2">
+                  <span className="mr-1 text-xs font-semibold text-[#55705c]">Map mode:</span>
+                  {[
+                    { value: 'route', label: 'Flight route', className: 'border-blue-300 text-blue-700' },
+                    { value: 'pollination', label: 'Pollination zone', className: 'border-amber-300 text-amber-700' },
+                    { value: 'pesticide', label: 'Pesticide zone', className: 'border-red-300 text-red-700' },
+                  ].map((mode) => (
+                    <Button
+                      key={mode.value}
+                      type="button"
+                      size="sm"
+                      variant={mapMode === mode.value ? 'default' : 'outline'}
+                      className={mapMode === mode.value ? '' : mode.className}
+                      onClick={() => { setMapMode(mode.value); setDraftZone([]); }}
+                    >
+                      {mode.label}
+                    </Button>
+                  ))}
+                  {mapMode !== 'route' && (
+                    <>
+                      <span className="ml-2 text-xs font-semibold text-[#55705c]">Shape:</span>
+                      <Button type="button" size="sm" variant={zoneShape === 'polygon' ? 'default' : 'outline'} onClick={() => { setZoneShape('polygon'); setDraftZone([]); }}>
+                        Lines / polygon
+                      </Button>
+                      <Button type="button" size="sm" variant={zoneShape === 'rectangle' ? 'default' : 'outline'} onClick={() => { setZoneShape('rectangle'); setDraftZone([]); }}>
+                        Rectangle / box
+                      </Button>
+                      {zoneShape === 'polygon' && <Button type="button" size="sm" onClick={() => finishZone()} disabled={draftZone.length < 3}>
+                        <Check className="h-4 w-4" /> Finish zone ({draftZone.length}/3+)
+                      </Button>}
+                      {zoneShape === 'rectangle' && <span className="px-2 text-xs text-muted-foreground">Click first corner, move to resize, click opposite corner.</span>}
+                      <Button type="button" size="sm" variant="ghost" onClick={clearDraftZone} disabled={draftZone.length === 0}>
+                        <X className="h-4 w-4" /> Clear points
+                      </Button>
+                    </>
+                  )}
+                </div>
                 <MissionMap
                   waypoints={waypoints}
                   onMapClick={handleMapClick}
+                  onMapMove={handleMapMove}
                   onRemoveWaypoint={handleRemoveWaypoint}
+                  zones={[...pollinationZones, ...pesticideZones]}
+                  draftZone={draftZone}
                   center={mapCenter}
                   fieldBoundary={selectedFieldBoundary}
                   fieldName={selectedField?.name}
                 />
                 {errors.waypoints && <p className="text-xs text-destructive">{errors.waypoints}</p>}
+
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                    Flight route: click to add waypoints
+                  </div>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    Pollination zones: {pollinationZones.length} saved
+                  </div>
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                    Pesticide zones: {pesticideZones.length} saved
+                  </div>
+                </div>
+
+                {(pollinationZones.length > 0 || pesticideZones.length > 0) && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {[...pollinationZones, ...pesticideZones].map((zone) => (
+                      <div key={zone.id} className="flex items-center justify-between rounded-lg border border-[#cbd8c5] bg-white px-3 py-2 text-xs">
+                        <span className={zone.type === 'pollination' ? 'text-amber-700' : 'text-red-700'}>{zone.name}</span>
+                        <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => removeZone(zone.id, zone.type)} aria-label={`Remove ${zone.name}`}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-3 gap-3 pt-2">
                   <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-center">
@@ -614,8 +829,10 @@ const MissionPlanning = () => {
             routeDistanceLabel={formatDistance(routeDistance)}
             flightTimeLabel={formatDuration(estimatedFlightTime)}
             status={status}
+            preflight={preflight}
+            onCheckMission={handleCheckMission}
             onStartMission={handleStartMission}
-            canStartMission={Boolean(editingMissionId) && status !== 'draft'}
+            canStartMission={Boolean(editingMissionId) && status === 'ready'}
           />
         </div>
 

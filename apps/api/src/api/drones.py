@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from src.database.database import get_db
 from src.models.drone import Drone
 from src.schemas.drone import DroneCreate, DroneUpdate
+from src.services.drone_runtime import drone_runtime
 
 
 router = APIRouter(
@@ -87,14 +88,23 @@ def get_drone_telemetry(
     if not drone:
         raise HTTPException(status_code=404, detail="Drone not found")
 
+    runtime = drone_runtime.snapshot()
     return {
         "drone_id": drone.id,
-        "status": drone.status,
-        "battery": 72 if drone.status == "active" else 95,
-        "speed": 5.2 if drone.status == "active" else 0,
-        "altitude": 12 if drone.status == "active" else 0,
-        "location": "Apple Orchard Farm",
+        "status": runtime["status"],
+        "battery": runtime["battery"],
+        "speed": runtime["speed"],
+        "altitude": runtime["altitude"],
+        "location": "Apple Orchard Farm" if runtime["gps"] is None else f"{runtime['gps']['latitude']}, {runtime['gps']['longitude']}",
         "direction": "North-East",
         "camera": "online",
-        "gps": "locked",
+        "gps": "locked" if runtime["gps"] else "waiting",
+        "connected": runtime["connected"],
+        "manual_override": runtime["manual_override"],
+        "returning_home": runtime["returning_home"],
     }
+
+
+@router.get("/runtime")
+def get_drone_runtime():
+    return drone_runtime.snapshot()
