@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from src.database.database import get_db
 from src.models.drone import Drone
+from src.models.telemetry import TelemetryReading
 from src.schemas.drone import DroneCreate, DroneUpdate
 from src.services.drone_runtime import drone_runtime
 from src.services.hardware_gateway import hardware_gateway
@@ -21,7 +22,10 @@ def create_drone(
 ):
     drone = Drone(
         name=drone_data.name,
-        model=drone_data.model
+        model=drone_data.model,
+        user_id=drone_data.user_id,
+        field_id=drone_data.field_id,
+        hardware_id=drone_data.hardware_id,
     )
 
     db.add(drone)
@@ -111,3 +115,22 @@ def get_drone_telemetry(
 @router.get("/runtime")
 def get_drone_runtime():
     return drone_runtime.snapshot()
+
+
+@router.get("/{drone_id}/telemetry/history")
+def get_drone_telemetry_history(
+    drone_id: int,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
+    drone = db.query(Drone).filter(Drone.id == drone_id).first()
+    if not drone:
+        raise HTTPException(status_code=404, detail="Drone not found")
+    readings = (
+        db.query(TelemetryReading)
+        .filter(TelemetryReading.drone_id == drone_id)
+        .order_by(TelemetryReading.recorded_at.desc())
+        .limit(min(max(limit, 1), 1000))
+        .all()
+    )
+    return list(reversed(readings))

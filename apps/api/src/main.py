@@ -11,6 +11,9 @@ from src.models.mission import Mission
 from src.models.sensor_data import SensorData
 from src.models.crop_monitoring import CropMonitoring
 from src.models.pest_detection import PestDetection
+from src.models.farm_field import FarmField
+from src.models.telemetry import TelemetryReading
+from src.models.media_asset import MediaAsset
 
 from src.api.auth import router as auth_router
 from src.api.users import router as users_router
@@ -26,6 +29,7 @@ from src.api.alerts import router as alerts_router
 from src.api.pixhawk import router as pixhawk_router
 from src.api.camera import router as camera_router
 from src.api.hardware import router as hardware_router
+from src.api.farm_fields import router as farm_fields_router
 
 
 Base.metadata.create_all(bind=engine)
@@ -56,6 +60,22 @@ try:
 			for column_name, column_type in mission_migrations.items():
 				if column_name not in mission_columns:
 					connection.execute(text(f"ALTER TABLE missions ADD COLUMN {column_name} {column_type}"))
+	for table_name, migrations in {
+		"drones": {
+			"user_id": "INTEGER",
+			"field_id": "INTEGER",
+			"hardware_id": "VARCHAR(120)",
+		},
+		"sensor_data": {
+			"recorded_at": "TIMESTAMP",
+		},
+	}.items():
+		if table_name in inspector.get_table_names():
+			columns = {column["name"] for column in inspector.get_columns(table_name)}
+			with engine.begin() as connection:
+				for column_name, column_type in migrations.items():
+					if column_name not in columns:
+						connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"))
 except Exception as error:
 	print(f"Database migration warning: {error}")
 
@@ -102,6 +122,7 @@ for router in (
 	pixhawk_router,
 	camera_router,
 	hardware_router,
+	farm_fields_router,
 ):
 	app.include_router(router)
 

@@ -121,10 +121,15 @@ def upload_mission(waypoints):
     )
     pixhawk_connection.mav.mission_count_send(
         pixhawk_connection.target_system,
+        pixhawk_connection.target_component,
         len(waypoints),
     )
     for index, waypoint in enumerate(waypoints):
-        message = pixhawk_connection.recv_match(type="MISSION_REQUEST", blocking=True, timeout=5)
+        message = pixhawk_connection.recv_match(
+            type=["MISSION_REQUEST", "MISSION_REQUEST_INT"],
+            blocking=True,
+            timeout=5,
+        )
         if message is None:
             raise RuntimeError("Pixhawk did not request mission waypoint")
         pixhawk_connection.mav.mission_item_int_send(
@@ -143,7 +148,10 @@ def upload_mission(waypoints):
             int(float(waypoint["longitude"]) * 10**7),
             10,
         )
-    pixhawk_connection.recv_match(type="MISSION_ACK", blocking=True, timeout=5)
+    acknowledgement = pixhawk_connection.recv_match(type="MISSION_ACK", blocking=True, timeout=5)
+    if acknowledgement is None or acknowledgement.type != mavutil.mavlink.MAV_MISSION_ACCEPTED:
+        result = None if acknowledgement is None else acknowledgement.type
+        raise RuntimeError(f"Pixhawk rejected mission upload: {result}")
 
 
 def start_mission():

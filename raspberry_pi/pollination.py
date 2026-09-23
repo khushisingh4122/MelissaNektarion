@@ -1,5 +1,6 @@
 import time
 import os
+import threading
 
 try:
     import RPi.GPIO as GPIO
@@ -8,7 +9,10 @@ except ImportError:
 
 
 PUMP_PIN = int(os.getenv("PUMP_GPIO_PIN", "18"))
+MAX_PUMP_SECONDS = float(os.getenv("MAX_PUMP_SECONDS", "30"))
 _pump_running = False
+_pump_timer = None
+_pump_lock = threading.Lock()
 
 
 def setup_pump():
@@ -20,13 +24,26 @@ def setup_pump():
 
 
 def set_pump(running):
-    global _pump_running
-    if GPIO is None:
-        _pump_running = bool(running)
-        print(f"Pump {'ON' if running else 'OFF'} (GPIO unavailable; simulation mode)")
-        return
-    GPIO.output(PUMP_PIN, GPIO.HIGH if running else GPIO.LOW)
-    _pump_running = bool(running)
+    global _pump_running, _pump_timer
+    with _pump_lock:
+        if _pump_timer is not None:
+            _pump_timer.cancel()
+            _pump_timer = None
+        if GPIO is None:
+            _pump_running = bool(running)
+            print(f"Pump {'ON' if running else 'OFF'} (GPIO unavailable; simulation mode)")
+        else:
+            GPIO.output(PUMP_PIN, GPIO.HIGH if running else GPIO.LOW)
+            _pump_running = bool(running)
+        if running:
+            _pump_timer = threading.Timer(MAX_PUMP_SECONDS, emergency_stop)
+            _pump_timer.daemon = True
+            _pump_timer.start()
+
+
+def emergency_stop():
+    """Force the pump off after a safety timeout or emergency event."""
+    set_pump(False)
 
 
 def start_pump(duration=2):

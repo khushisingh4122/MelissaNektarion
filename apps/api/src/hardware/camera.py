@@ -79,6 +79,7 @@ def capture_image() -> Path:
 
     CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    (CAPTURE_DIR / f"capture_{timestamp}.jpg").write_bytes(frame)
+    capture_path = CAPTURE_DIR / f"capture_{timestamp}.jpg"
+    capture_path.write_bytes(frame)
     LATEST_IMAGE.write_bytes(frame)
-    return LATEST_IMAGE
+    return capture_path

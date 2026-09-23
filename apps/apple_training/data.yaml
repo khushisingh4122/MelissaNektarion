@@ -1,9 +1,0 @@
-path: D:/melisa/apple_training
-
-train: images/train
-val: images/val
-test: images/test
-
-names:
-  0: apple_flower
-  1: bud

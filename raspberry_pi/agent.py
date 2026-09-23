@@ -19,19 +19,24 @@ from pixhawk import (
 from pollination import set_pump, setup_pump
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+HARDWARE_API_TOKEN = os.getenv("HARDWARE_API_TOKEN", "")
 DRONE_ID = int(os.getenv("DRONE_ID", "1"))
 PIXHAWK_PORT = os.getenv("PIXHAWK_PORT", "/dev/ttyACM0")
 PIXHAWK_BAUD = int(os.getenv("PIXHAWK_BAUD", "115200"))
 POLL_SECONDS = float(os.getenv("HARDWARE_POLL_SECONDS", "1"))
+LOW_BATTERY_RETURN_HOME = float(os.getenv("LOW_BATTERY_RETURN_HOME", "20"))
 
 active_mission = False
 active_zones: list[dict] = []
 pump_override: bool | None = None
+completed_command_ids: set[str] = set()
 
 
 def api_json(path: str, method: str = "GET", payload: dict | None = None):
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
     headers = {"Content-Type": "application/json"} if body else {}
+    if HARDWARE_API_TOKEN:
+        headers["X-Hardware-Token"] = HARDWARE_API_TOKEN
     request_object = request.Request(f"{API_BASE_URL}{path}", data=body, headers=headers, method=method)
     with request.urlopen(request_object, timeout=5) as response:
         return json.loads(response.read().decode("utf-8"))
@@ -65,15 +70,19 @@ def process_commands():
     global active_mission, active_zones, pump_override
     response = api_json(f"/hardware/commands/{DRONE_ID}")
     for command in response.get("commands", []):
+        command_id = command["id"]
+        if command_id in completed_command_ids:
+            api_json(f"/hardware/commands/{DRONE_ID}/ack", "POST", {"command_id": command_id})
+            continue
         payload = command.get("payload", {})
         command_type = command.get("type")
         try:
             if command_type == "start_mission":
+                upload_mission(payload.get("waypoints", []))
+                start_mission()
                 active_mission = True
                 active_zones = payload.get("pollination_zones", [])
                 pump_override = None
-                upload_mission(payload.get("waypoints", []))
-                start_mission()
             elif command_type == "pump":
                 pump_override = bool(payload.get("running", False))
                 set_pump(pump_override)
@@ -87,12 +96,16 @@ def process_commands():
                 set_pump(False)
                 active_mission = False
                 land()
-            api_json(f"/hardware/commands/{DRONE_ID}/ack", "POST", {"command_id": command["id"]})
+            completed_command_ids.add(command_id)
+            if len(completed_command_ids) > 1000:
+                completed_command_ids.pop()
+            api_json(f"/hardware/commands/{DRONE_ID}/ack", "POST", {"command_id": command_id})
         except Exception as error:
             print(f"Hardware command failed ({command_type}): {error}")
 
 
 def send_telemetry():
+    global active_mission, pump_override
     gps = get_gps()
     battery_data = get_battery()
     speed_data = get_speed()
@@ -102,13 +115,19 @@ def send_telemetry():
         return_home() if active_mission else None
         telemetry = {"connected": False, "internet_connected": True, "camera_available": False}
     else:
+        battery = battery_data.get("battery_remaining")
+        if active_mission and battery is not None and battery <= LOW_BATTERY_RETURN_HOME:
+            set_pump(False)
+            return_home()
+            active_mission = False
+            pump_override = False
         if pump_override is None:
             set_pump(in_pollination_zone(gps))
         telemetry = {
             "connected": True,
             "internet_connected": True,
             "gps": gps,
-            "battery": battery_data.get("battery_remaining"),
+            "battery": battery,
             "altitude": gps.get("altitude"),
             "speed": speed_data.get("ground_speed") if speed_data else None,
             "camera_available": True,
@@ -117,6 +136,7 @@ def send_telemetry():
 
 
 def run():
+    global active_mission
     setup_pump()
     while True:
         try:
@@ -128,6 +148,12 @@ def run():
         except Exception as error:
             print(f"Hardware agent error: {error}")
             set_pump(False)
+            if active_mission:
+                try:
+                    return_home()
+                except Exception as failsafe_error:
+                    print(f"Local RTL failed: {failsafe_error}")
+                active_mission = False
         time.sleep(5)
 
 

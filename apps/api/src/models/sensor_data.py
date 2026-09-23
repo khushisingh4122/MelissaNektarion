@@ -1,4 +1,6 @@
-from sqlalchemy import Float, Integer, String
+from datetime import datetime, timezone
+
+from sqlalchemy import DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base
@@ -30,4 +32,8 @@ class SensorData(Base):
     value: Mapped[float] = mapped_column(
         Float,
         nullable=False
+    )
+
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
     )
