@@ -13,8 +13,13 @@ CAPTURE_DIR = Path(
 )
 LATEST_IMAGE = CAPTURE_DIR / "latest.jpg"
 
-# Lower this to (640, 480) if the video is choppy over Wi-Fi.
-STREAM_SIZE = (1280, 720)
+def _stream_size() -> tuple[int, int]:
+    width = int(os.getenv("CAMERA_STREAM_WIDTH", "640"))
+    height = int(os.getenv("CAMERA_STREAM_HEIGHT", "480"))
+    return max(width, 160), max(height, 120)
+
+
+STREAM_SIZE = _stream_size()
 
 
 class StreamBuffer(io.BufferedIOBase):

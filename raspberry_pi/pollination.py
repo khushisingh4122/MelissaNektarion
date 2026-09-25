@@ -17,10 +17,16 @@ _pump_lock = threading.Lock()
 
 def setup_pump():
     if GPIO is None:
+        if os.getenv("REQUIRE_PUMP", "true").strip().lower() in {"1", "true", "yes", "on"}:
+            raise RuntimeError("RPi.GPIO is required for the pollination pump.")
         return False
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(PUMP_PIN, GPIO.OUT, initial=GPIO.LOW)
-    return True
+    try:
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(PUMP_PIN, GPIO.OUT, initial=GPIO.LOW)
+        return True
+    except Exception as error:
+        print(f"Pump setup error: {error}")
+        return False
 
 
 def set_pump(running):
@@ -33,8 +39,12 @@ def set_pump(running):
             _pump_running = bool(running)
             print(f"Pump {'ON' if running else 'OFF'} (GPIO unavailable; simulation mode)")
         else:
-            GPIO.output(PUMP_PIN, GPIO.HIGH if running else GPIO.LOW)
-            _pump_running = bool(running)
+            try:
+                GPIO.output(PUMP_PIN, GPIO.HIGH if running else GPIO.LOW)
+                _pump_running = bool(running)
+            except Exception as error:
+                _pump_running = False
+                print(f"Pump output error: {error}")
         if running:
             _pump_timer = threading.Timer(MAX_PUMP_SECONDS, emergency_stop)
             _pump_timer.daemon = True

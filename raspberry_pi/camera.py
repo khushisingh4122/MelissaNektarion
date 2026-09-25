@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import datetime
+import os
 
 
 def capture_image():
@@ -7,6 +8,7 @@ def capture_image():
     Capture an image using the Raspberry Pi Camera.
     """
 
+    camera = None
     try:
         from picamera2 import Picamera2
 
@@ -19,11 +21,11 @@ def capture_image():
         camera.start()
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        image_path = Path("raspberry_pi") / f"flower_{timestamp}.jpg"
+        capture_dir = Path(os.getenv("CAMERA_CAPTURE_DIR", Path(__file__).resolve().parent / "captures"))
+        capture_dir.mkdir(parents=True, exist_ok=True)
+        image_path = capture_dir / f"flower_{timestamp}.jpg"
 
         camera.capture_file(str(image_path))
-        camera.stop()
-
         print(f"Image captured: {image_path}")
 
         return str(image_path)
@@ -31,6 +33,12 @@ def capture_image():
     except Exception as e:
         print(f"Camera error: {e}")
         return None
+    finally:
+        if camera is not None:
+            try:
+                camera.stop()
+            except Exception as cleanup_error:
+                print(f"Camera cleanup error: {cleanup_error}")
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ import { FARM_BOUNDARY } from '../lib/fieldData.js';
 import { Battery, Camera, Gauge, MapPin, Navigation, Plane, Radio, ShieldCheck, Timer, Plug, Unplug } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
+const PI_CAMERA_BASE = (import.meta.env.VITE_PI_CAMERA_URL || '').replace(/\/$/, '');
 
 const demoRoute = [
   [28.6148, 77.2082],
@@ -77,6 +78,7 @@ const DroneMonitoring = () => {
   const [cameraImage, setCameraImage] = useState('');
   const [cameraBusy, setCameraBusy] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [cameraAvailable, setCameraAvailable] = useState(false);
   const [liveOn, setLiveOn] = useState(false);
   const [capturedImages, setCapturedImages] = useState(() => {
     try {
@@ -88,16 +90,33 @@ const DroneMonitoring = () => {
 
   const cameraUrl = () => `${API_BASE}/camera/latest?ts=${Date.now()}`;
 
+  const piCameraUrl = (path) => `${PI_CAMERA_BASE}${path}`;
+
   const captureCameraImage = async () => {
     setCameraBusy(true);
     setCameraError('');
     try {
-      const response = await apiServerClient.fetch('/camera/capture-and-analyze', { method: 'POST' });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || 'Camera capture failed.');
+      let data;
+      let imageUrl;
+      if (PI_CAMERA_BASE) {
+        const imageResponse = await fetch(piCameraUrl('/capture'));
+        if (!imageResponse.ok) throw new Error('Raspberry Pi camera capture failed.');
+        const imageBlob = await imageResponse.blob();
+        const formData = new FormData();
+        formData.append('file', new File([imageBlob], 'pi-capture.jpg', { type: imageBlob.type || 'image/jpeg' }));
+        const analysisResponse = await apiServerClient.fetch('/pest-detection/analyze-image', { method: 'POST', body: formData });
+        data = await analysisResponse.json();
+        if (!analysisResponse.ok) throw new Error(data.detail || 'Image analysis failed.');
+        imageUrl = URL.createObjectURL(imageBlob);
+      } else {
+        const response = await apiServerClient.fetch('/camera/capture-and-analyze', { method: 'POST' });
+        data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Camera capture failed.');
+        imageUrl = cameraUrl();
+      }
       const captured = {
         id: `capture_${Date.now()}`,
-        url: cameraUrl(),
+        url: imageUrl,
         timestamp: new Date().toLocaleString(),
         location: 'Raspberry Pi camera',
         analysis: data,
@@ -141,6 +160,19 @@ const DroneMonitoring = () => {
     }
   };
 
+  const refreshCameraStatus = async () => {
+    try {
+      const response = PI_CAMERA_BASE
+        ? await fetch(piCameraUrl('/status'))
+        : await apiServerClient.fetch('/camera/status');
+      if (!response.ok) return;
+      const status = await response.json();
+      setCameraAvailable(Boolean(status.available));
+    } catch {
+      setCameraAvailable(false);
+    }
+  };
+
   const connectHardware = async () => {
     setHardwareError('');
     try {
@@ -176,8 +208,13 @@ const DroneMonitoring = () => {
 
   useEffect(() => {
     refreshHardware();
+    refreshCameraStatus();
     const interval = window.setInterval(refreshHardware, 5000);
-    return () => window.clearInterval(interval);
+    const cameraInterval = window.setInterval(refreshCameraStatus, 5000);
+    return () => {
+      window.clearInterval(interval);
+      window.clearInterval(cameraInterval);
+    };
   }, []);
 
   return (
@@ -235,9 +272,9 @@ const DroneMonitoring = () => {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[[Radio, 'GPS', telemetry?.gps || 'Locked'], [Battery, 'Battery', `${telemetry?.battery ?? 72}%`], [Camera, 'Camera', telemetry?.camera || 'Online'], [ShieldCheck, 'Mission safety', 'Clear']].map(([Icon, label, value]) => <Card key={label} className="border border-[#cbd8c5] bg-[#f5f7f1]"><CardContent className="flex items-center gap-3 p-4"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#dcefd5] text-[#557a45]"><Icon className="h-5 w-5" /></div><div><p className="text-[10px] uppercase tracking-[0.16em] text-[#718446]">{label}</p><p className="mt-1 text-sm font-bold text-[#183d2d]">{value}</p></div></CardContent></Card>)}</div>
 
         <Card className="border border-[#cbd8c5] bg-[#f5f7f1]">
-          <CardHeader className="flex flex-row items-center justify-between gap-3"><div><CardTitle className="text-lg text-[#183d2d]">Raspberry Pi camera</CardTitle><p className="mt-1 text-xs text-[#718446]">Capture a field image and send it through crop disease and pest analysis.</p></div><div className="flex gap-2"><Button type="button" variant="outline" onClick={() => setLiveOn((on) => !on)}>{liveOn ? 'Stop live view' : 'Start live view'}</Button><Button type="button" onClick={captureCameraImage} disabled={cameraBusy}>{cameraBusy ? 'Capturing...' : 'Capture and analyze'}</Button></div></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-3"><div><CardTitle className="text-lg text-[#183d2d]">Raspberry Pi camera</CardTitle><p className="mt-1 text-xs text-[#718446]">Capture a field image and send it through crop disease and pest analysis.</p><p className={`mt-1 text-xs font-semibold ${cameraAvailable ? 'text-emerald-700' : 'text-amber-700'}`}>{cameraAvailable ? 'Camera available' : 'Waiting for camera capture'}</p></div><div className="flex gap-2"><Button type="button" variant="outline" onClick={() => setLiveOn((on) => !on)}>{liveOn ? 'Stop live view' : 'Start live view'}</Button><Button type="button" onClick={captureCameraImage} disabled={cameraBusy}>{cameraBusy ? 'Capturing...' : 'Capture and analyze'}</Button></div></CardHeader>
           <CardContent>
-            {liveOn ? <img src={`${API_BASE}/camera/stream`} alt="Live camera stream" className="aspect-video w-full rounded-2xl border border-[#cbd8c5] object-cover" /> : cameraImage ? <img src={cameraImage} alt="Latest Raspberry Pi camera capture" className="aspect-video w-full rounded-2xl border border-[#cbd8c5] object-cover" /> : <div className="flex aspect-video items-center justify-center rounded-2xl border-2 border-dashed border-[#b8cbae] bg-[#eef4e9] text-sm text-[#718446]">No Raspberry Pi capture yet</div>}
+            {liveOn ? <img src={PI_CAMERA_BASE ? piCameraUrl('/stream') : `${API_BASE}/camera/stream`} alt="Live camera stream" className="aspect-video w-full rounded-2xl border border-[#cbd8c5] object-cover" /> : cameraImage ? <img src={cameraImage} alt="Latest Raspberry Pi camera capture" className="aspect-video w-full rounded-2xl border border-[#cbd8c5] object-cover" /> : <div className="flex aspect-video items-center justify-center rounded-2xl border-2 border-dashed border-[#b8cbae] bg-[#eef4e9] text-sm text-[#718446]">No Raspberry Pi capture yet</div>}
             {cameraError && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{cameraError}</p>}
           </CardContent>
         </Card>

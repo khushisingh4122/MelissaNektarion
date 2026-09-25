@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from src.hardware.pixhawk import Pixhawk
+from src.services.hardware_gateway import hardware_gateway
 
 
 router = APIRouter(
@@ -69,6 +70,13 @@ def disconnect_pixhawk():
 @router.get("/status")
 def pixhawk_status():
     if pixhawk.connection is None:
+        remote = hardware_gateway.telemetry_for(int(os.getenv("DRONE_ID", "1")))
+        if remote and remote.get("connected"):
+            return {
+                "connected": True,
+                "message": "Pixhawk telemetry received from Raspberry Pi",
+                "source": "raspberry_pi",
+            }
         return {
             "connected": False,
             "message": "Pixhawk not connected"
@@ -163,6 +171,18 @@ def get_armed_status():
 @router.get("/telemetry")
 def get_telemetry():
     if pixhawk.connection is None:
+        remote = hardware_gateway.telemetry_for(int(os.getenv("DRONE_ID", "1")))
+        if remote and remote.get("connected"):
+            return {
+                "connected": True,
+                "source": "raspberry_pi",
+                "gps": remote.get("gps"),
+                "battery": {"battery_remaining": remote.get("battery")},
+                "speed": {"ground_speed": remote.get("speed") or 0},
+                "altitude": remote.get("altitude"),
+                "mode": remote.get("flight_mode"),
+                "armed": remote.get("armed"),
+            }
         raise HTTPException(status_code=503, detail="Pixhawk not connected")
 
     try:

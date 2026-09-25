@@ -3,7 +3,16 @@ from __future__ import annotations
 import json
 import os
 import time
+from pathlib import Path
 from urllib import request
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+if load_dotenv is not None:
+    load_dotenv(Path(__file__).with_name(".env"))
 
 from pixhawk import (
     connect_pixhawk,
@@ -147,13 +156,21 @@ def run():
                     time.sleep(POLL_SECONDS)
         except Exception as error:
             print(f"Hardware agent error: {error}")
-            set_pump(False)
+            try:
+                set_pump(False)
+            except Exception as pump_error:
+                print(f"Pump shutdown failed: {pump_error}")
             if active_mission:
                 try:
                     return_home()
                 except Exception as failsafe_error:
                     print(f"Local RTL failed: {failsafe_error}")
                 active_mission = False
+        finally:
+            try:
+                set_pump(False)
+            except Exception as pump_error:
+                print(f"Pump cleanup failed: {pump_error}")
         time.sleep(5)
 
 

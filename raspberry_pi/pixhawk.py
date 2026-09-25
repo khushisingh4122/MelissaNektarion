@@ -21,7 +21,7 @@ def connect_pixhawk(port="/dev/ttyACM0", baud=115200):
 
         print("Waiting for Pixhawk heartbeat...")
 
-        pixhawk_connection.wait_heartbeat()
+        pixhawk_connection.wait_heartbeat(timeout=10)
 
         print(
             f"Pixhawk connected: "
