@@ -1,0 +1,35 @@
+﻿node_modules/
+dist/
+.venv/
+.env
+.env.local
+*.db
+
+# Local Python environment and development database
+apps/api/venv/
+apps/api/*.db
+
+# Python cache
+__pycache__/
+*.pyc
+**/__pycache__/
+**/*.pyc
+
+# Apple training dataset
+apple_training/images/
+apple_training/labels/
+apps/apple_training/datasets/
+
+# Training outputs
+apps/apple_training/runs/
+
+# YOLO pretrained model
+yolo11n.pt
+
+# AI training datasets
+ai_training/raw/
+ai_training/processed/
+ai_training/final_dataset/
+
+# Large PyTorch model
+ai_training/models/*.pth

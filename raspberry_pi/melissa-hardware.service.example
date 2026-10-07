@@ -1,0 +1,16 @@
+[Unit]
+Description=MelissaNektarion Raspberry Pi hardware agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/melissanektarion/raspberry_pi
+ExecStart=/usr/bin/python3 /home/pi/melissanektarion/raspberry_pi/agent.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

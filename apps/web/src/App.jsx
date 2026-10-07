@@ -1,0 +1,69 @@
+import React from 'react';
+import { Route, Routes, BrowserRouter as Router } from 'react-router-dom';
+import ScrollToTop from './components/ScrollToTop.jsx';
+import { ThemeProvider } from './components/ThemeProvider.jsx';
+import { LanguageProvider } from './i18n/useTranslation.jsx';
+
+import HomePage from './pages/HomePage.jsx';
+import Login from './pages/Login.jsx';
+import Signup from './pages/Signup.jsx';
+
+import DashboardOverview from './pages/DashboardOverview.jsx';
+import FarmIntelligence from './pages/FarmIntelligence.jsx';
+import AIAnalysis from './pages/AIAnalysis.jsx';
+import FarmMap from './pages/FarmMap.jsx';
+import AIChatbot from './pages/AIChatbot.jsx';
+import MissionPlanning from './pages/MissionPlanning.jsx';
+import DroneMonitoring from './pages/DroneMonitoring.jsx';
+import CropHealthAnalysis from './pages/CropHealthAnalysis.jsx';
+import PollinationMonitoring from './pages/PollinationMonitoring.jsx';
+import YieldPrediction from './pages/YieldPrediction.jsx';
+import GovernmentSchemes from './pages/GovernmentSchemes.jsx';
+import AlertsNotifications from './pages/AlertsNotifications.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
+import SettingsPage from './pages/SettingsPage.jsx';
+import FarmerSupportPage from './pages/FarmerSupportPage.jsx';
+
+const isAuth = () => {
+  return localStorage.getItem('agri_user') || sessionStorage.getItem('agri_user');
+};
+
+function App() {
+  return (
+    <LanguageProvider>
+      <ThemeProvider>
+        <Router>
+          <ScrollToTop />
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/home" element={<HomePage />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+
+            <Route
+              path="/dashboard"
+              element={isAuth() ? <DashboardOverview /> : <Login />}
+            />
+
+            <Route path="/farm-intelligence" element={<FarmIntelligence />} />
+            <Route path="/ai-analysis" element={<AIAnalysis />} />
+            <Route path="/farm-map" element={<FarmMap />} />
+            <Route path="/ai-chatbot" element={<AIChatbot />} />
+            <Route path="/mission-planning" element={<MissionPlanning />} />
+            <Route path="/drone-monitoring" element={<DroneMonitoring />} />
+            <Route path="/crop-health" element={<CropHealthAnalysis />} />
+            <Route path="/pollination" element={<PollinationMonitoring />} />
+            <Route path="/yield-prediction" element={<YieldPrediction />} />
+            <Route path="/schemes" element={<GovernmentSchemes />} />
+            <Route path="/alerts" element={<AlertsNotifications />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/farmer-support" element={<FarmerSupportPage />} />
+          </Routes>
+        </Router>
+      </ThemeProvider>
+    </LanguageProvider>
+  );
+}
+
+export default App;
